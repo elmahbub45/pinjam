@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b4d3b" />
+  <meta name="description" content="Pinjam — pengelola cicilan pribadi." />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Pinjam</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <section id="loginView" class="login-shell hidden">
+    <div class="login-card">
+      <div class="brand-mark">P</div>
+      <h1>Pinjam</h1>
+      <p>Ringkas tagihan, cicilan, dan pengingat dalam satu tempat.</p>
+      <button id="googleLoginBtn" class="btn primary wide">Masuk dengan Google</button>
+      <p id="loginHint" class="muted tiny">Akun harus diizinkan di konfigurasi backend.</p>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand-row">
+        <div class="brand-mark small">P</div>
+        <div><strong>Pinjam</strong><span>Keuangan pribadi</span></div>
+      </div>
+      <nav id="sideNav" class="side-nav">
+        <button data-view="home" class="active">⌂ <span>Beranda</span></button>
+        <button data-view="bills">▤ <span>Tagihan</span></button>
+        <button data-view="loans">◫ <span>Pinjaman</span></button>
+        <button data-view="stats">⌁ <span>Statistik</span></button>
+        <button data-view="reminders">◉ <span>Reminder</span></button>
+        <button data-view="settings">⚙ <span>Pengaturan</span></button>
+      </nav>
+      <div class="sidebar-foot"><span id="syncDot" class="dot"></span><span id="syncText">Belum sinkron</span></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="dateLabel"></p>
+          <h1 id="viewTitle">Beranda</h1>
+        </div>
+        <div class="top-actions">
+          <button id="refreshBtn" class="icon-btn" title="Sinkronkan">↻</button>
+          <button id="notificationBtn" class="icon-btn" title="Notifikasi">🔔</button>
+          <button id="accountBtn" class="avatar" title="Akun">A</button>
+        </div>
+      </header>
+
+      <section id="viewContainer" class="view-container"></section>
+    </main>
+
+    <nav id="bottomNav" class="bottom-nav">
+      <button data-view="home" class="active"><span>⌂</span><small>Beranda</small></button>
+      <button data-view="bills"><span>▤</span><small>Tagihan</small></button>
+      <button id="quickAddBtn" class="quick-add"><span>＋</span><small>Tambah</small></button>
+      <button data-view="stats"><span>⌁</span><small>Statistik</small></button>
+      <button data-view="settings"><span>⚙</span><small>Lainnya</small></button>
+    </nav>
+  </div>
+
+  <dialog id="modal" class="modal">
+    <form method="dialog" class="modal-card" id="modalCard">
+      <div class="modal-head"><div><p class="eyebrow" id="modalEyebrow"></p><h2 id="modalTitle"></h2></div><button value="cancel" class="icon-btn">×</button></div>
+      <div id="modalBody"></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
