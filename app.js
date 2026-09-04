@@ -72,17 +72,35 @@ function render(){
 }
 
 function renderHome(){
-  const d=state.data, a=d.analytics, next=(d.items||[]).filter(x=>x.status!=='Lunas').sort((x,y)=>x.dueDate.localeCompare(y.dueDate)).slice(0,5);
+  const d=state.data, a=d.analytics;
+  const pending=(d.items||[]).filter(x=>x.status!=='Lunas').sort((x,y)=>x.dueDate.localeCompare(y.dueDate));
+  const next=pending.slice(0,5), nearest=pending[0];
+  const monthPct=a.monthTotal?Math.min(100,Math.round((a.monthPaid/a.monthTotal)*100)):0;
   return `
-  <div class="hero-grid">
-    <div class="hero-card"><div><p class="eyebrow" style="color:#ffe7cb">Total sisa tagihan</p><div class="big-money">${money(a.totalOutstanding)}</div></div><div class="subline"><span>${a.unpaidCount} tagihan belum lunas</span><span>${a.providersCount} sumber aktif</span></div></div>
-    <div class="metric-card"><div class="metric-icon">◷</div><div><p class="eyebrow">Bulan ini</p><strong>${money(a.monthTotal)}</strong><p class="muted tiny">${a.monthCount} tagihan</p></div></div>
-    <div class="metric-card"><div class="metric-icon">✓</div><div><p class="eyebrow">Sudah dibayar</p><strong>${money(a.monthPaid)}</strong><p class="muted tiny">Sisa ${money(a.monthUnpaid)}</p></div></div>
-  </div>
-  ${d.vario?.remaining>0?`<div class="section"><div class="notice">Vario 160 dicatat terpisah: sisa pokok <strong>${money(d.vario.remaining)}</strong>. Nilai ini tidak dicampur ke total tagihan PayLater/pinjaman agar konsisten dengan spreadsheet Anda.</div></div>`:''}
-  <div class="section content-grid">
-    <div><div class="section-head"><div><h2>Tagihan terdekat</h2><p>Yang perlu Anda perhatikan berikutnya.</p></div><button class="link-btn" data-go="bills">Lihat semua</button></div><div class="panel bill-list">${next.length?next.map(billRow).join(''):'<div class="empty">Tidak ada tagihan belum lunas.</div>'}</div></div>
-    <div><div class="section-head"><div><h2>Sisa per layanan</h2><p>Komposisi kewajiban aktif.</p></div></div><div class="panel provider-list">${providerRows(a.providerOutstanding)}</div></div>
+  <div class="premium-home">
+    <div class="hero-grid premium-hero-grid">
+      <div class="hero-card luxury-hero">
+        <div class="hero-topline">
+          <div><p class="eyebrow" style="color:#ffe7cb">Total sisa tagihan</p><div class="big-money">${money(a.totalOutstanding)}</div></div>
+          <div class="hero-orb">Rp</div>
+        </div>
+        <div class="hero-bottom">
+          <div class="hero-stats">
+            <span><b>${a.unpaidCount}</b><small>Belum lunas</small></span>
+            <span><b>${a.providersCount}</b><small>Layanan aktif</small></span>
+            <span><b>${monthPct}%</b><small>Bulan ini terbayar</small></span>
+          </div>
+          ${nearest?`<div class="next-mini"><span>Tagihan berikutnya</span><strong>${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})} · ${money(nearest.amount)}</strong></div>`:''}
+        </div>
+      </div>
+      <div class="metric-card premium-metric"><div class="metric-icon">◷</div><div><p class="eyebrow">Bulan ini</p><strong>${money(a.monthTotal)}</strong><p class="muted tiny">${a.monthCount} tagihan</p></div><div class="mini-progress"><i style="width:${monthPct}%"></i></div></div>
+      <div class="metric-card premium-metric"><div class="metric-icon">✓</div><div><p class="eyebrow">Sudah dibayar</p><strong>${money(a.monthPaid)}</strong><p class="muted tiny">Sisa ${money(a.monthUnpaid)}</p></div><span class="metric-badge">${monthPct}%</span></div>
+    </div>
+    ${d.vario?.remaining>0?`<div class="section"><div class="notice premium-notice"><span class="notice-icon">◆</span><div><strong>Vario 160 dicatat terpisah</strong><br>Sisa pokok <b>${money(d.vario.remaining)}</b>. Nilai ini tidak dicampur ke total PayLater/pinjaman agar konsisten dengan spreadsheet Anda.</div></div></div>`:''}
+    <div class="section content-grid premium-content-grid">
+      <div><div class="section-head"><div><h2>Tagihan terdekat</h2><p>Prioritas pembayaran yang perlu diperhatikan.</p></div><button class="link-btn" data-go="bills">Lihat semua</button></div><div class="panel bill-list premium-bill-panel">${next.length?next.map(billRow).join(''):'<div class="empty">Tidak ada tagihan belum lunas.</div>'}</div></div>
+      <div><div class="section-head"><div><h2>Sisa per layanan</h2><p>Komposisi kewajiban aktif.</p></div></div><div class="panel provider-list premium-provider-panel">${providerRows(a.providerOutstanding)}</div></div>
+    </div>
   </div>`;
 }
 
@@ -91,21 +109,39 @@ function providerRows(obj){ const entries=Object.entries(obj||{}).sort((a,b)=>b[
 
 function renderBills(){
   const items=state.data.items||[]; const months=[...new Set(items.map(x=>monthKey(x.dueDate)))].sort(); if(!state.filter.month) state.filter.month=monthKey(todayISO());
-  const providers=[...new Set(items.map(x=>x.provider))].sort(); const filtered=items.filter(x=>(state.filter.month==='ALL'||monthKey(x.dueDate)===state.filter.month)&&(state.filter.provider==='ALL'||x.provider===state.filter.provider)&&(state.filter.status==='ALL'||(state.filter.status==='PAID'?x.status==='Lunas':x.status!=='Lunas'))).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
-  return `<div class="toolbar"><label class="field-inline">Bulan <select id="monthFilter"><option value="ALL">Semua</option>${months.map(m=>`<option value="${m}" ${m===state.filter.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></label><label class="field-inline">Sumber <select id="providerFilter"><option value="ALL">Semua</option>${providers.map(p=>`<option ${p===state.filter.provider?'selected':''}>${esc(p)}</option>`).join('')}</select></label><label class="field-inline">Status <select id="statusFilter"><option value="ALL">Semua</option><option value="UNPAID" ${state.filter.status==='UNPAID'?'selected':''}>Belum lunas</option><option value="PAID" ${state.filter.status==='PAID'?'selected':''}>Lunas</option></select></label></div>
-  <div class="table-card"><table class="table"><thead><tr><th>Jatuh tempo</th><th>Sumber</th><th>Tagihan</th><th style="text-align:right">Nominal</th><th>Status</th></tr></thead><tbody>${filtered.length?filtered.map(x=>{const [l,c]=statusInfo(x);return `<tr data-item="${esc(x.id)}"><td>${dateFmt(x.dueDate)}</td><td>${esc(x.provider)}</td><td>${esc(x.name)}</td><td class="money">${money(x.amount)}</td><td><span class="status ${c}">${l}</span></td></tr>`}).join(''):'<tr><td colspan="5" class="empty">Tidak ada tagihan pada filter ini.</td></tr>'}</tbody></table></div>`;
+  const providers=[...new Set(items.map(x=>x.provider))].sort();
+  const filtered=items.filter(x=>(state.filter.month==='ALL'||monthKey(x.dueDate)===state.filter.month)&&(state.filter.provider==='ALL'||x.provider===state.filter.provider)&&(state.filter.status==='ALL'||(state.filter.status==='PAID'?x.status==='Lunas':x.status!=='Lunas'))).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const total=filtered.reduce((n,x)=>n+Number(x.amount||0),0), paid=filtered.filter(x=>x.status==='Lunas').length, unpaid=filtered.length-paid;
+  return `<div class="bills-page">
+    <div class="bills-summary">
+      <div><span>Tagihan tampil</span><strong>${filtered.length}</strong></div>
+      <div><span>Total nominal</span><strong>${money(total)}</strong></div>
+      <div><span>Lunas</span><strong>${paid}</strong></div>
+      <div><span>Belum lunas</span><strong>${unpaid}</strong></div>
+    </div>
+    <div class="toolbar premium-toolbar"><label class="field-inline">Bulan <select id="monthFilter"><option value="ALL">Semua</option>${months.map(m=>`<option value="${m}" ${m===state.filter.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></label><label class="field-inline">Sumber <select id="providerFilter"><option value="ALL">Semua</option>${providers.map(p=>`<option ${p===state.filter.provider?'selected':''}>${esc(p)}</option>`).join('')}</select></label><label class="field-inline">Status <select id="statusFilter"><option value="ALL">Semua</option><option value="UNPAID" ${state.filter.status==='UNPAID'?'selected':''}>Belum lunas</option><option value="PAID" ${state.filter.status==='PAID'?'selected':''}>Lunas</option></select></label></div>
+    <div class="compact-bills">${filtered.length?filtered.map(x=>{const [l,c]=statusInfo(x),dt=new Date(`${x.dueDate}T00:00:00+08:00`);return `<div class="compact-bill" data-item="${esc(x.id)}"><div class="compact-date"><b>${dt.getDate()}</b><span>${new Intl.DateTimeFormat('id-ID',{month:'short'}).format(dt).toUpperCase()}</span></div><div class="compact-main"><strong>${esc(x.provider)}</strong><span>${esc(x.name)}</span></div><div class="compact-amount"><strong>${money(x.amount)}</strong><span>${dateFmt(x.dueDate,{day:'numeric',month:'short'})}</span></div><span class="status ${c}">${l}</span><span class="compact-chevron">›</span></div>`}).join(''):'<div class="panel empty">Tidak ada tagihan pada filter ini.</div>'}</div>
+  </div>`;
 }
 function monthLabel(m){const [y,mo]=m.split('-');return new Intl.DateTimeFormat('id-ID',{month:'long',year:'numeric'}).format(new Date(+y,+mo-1,1));}
 
 function renderLoans(){
   const groups=state.data.groups||[];
-  return `<div class="section-head"><div><h2>Semua pinjaman</h2><p>Dikelompokkan berdasarkan nama pinjaman/tagihan.</p></div><button id="addLoanBtn" class="btn primary">＋ Tambah</button></div><div class="cards">${groups.map(g=>`<div class="loan-card" data-group="${esc(g.key)}"><h3>${esc(g.name)}</h3><p>${esc(g.provider)} · ${g.kind==='dynamic'?'PayLater dinamis':'Cicilan tetap'}</p><div class="amount">${money(g.outstanding)}</div><div class="progress"><i style="width:${g.total?g.paid/g.total*100:0}%"></i></div><div class="loan-foot"><span>${g.paid}/${g.total} lunas</span><span>${g.nextDue?dateFmt(g.nextDue,{day:'numeric',month:'short'}):'Selesai'}</span></div></div>`).join('')||'<div class="panel empty">Belum ada pinjaman.</div>'}</div>`;
+  return `<div class="loans-page"><div class="section-head premium-page-head"><div><p class="eyebrow">Portofolio</p><h2>Semua pinjaman</h2><p>Dikelompokkan berdasarkan nama pinjaman/tagihan.</p></div><button id="addLoanBtn" class="btn primary">＋ Tambah</button></div><div class="premium-loan-grid">${groups.map(g=>{const pct=g.total?Math.min(100,Math.round(g.paid/g.total*100)):0;return `<div class="premium-loan-card" data-group="${esc(g.key)}"><div class="loan-card-top"><div class="provider-monogram">${esc((g.provider||'P').charAt(0).toUpperCase())}</div><div class="loan-title"><h3>${esc(g.name)}</h3><p>${esc(g.provider)}</p></div><span class="kind-pill">${g.kind==='dynamic'?'Dinamis':'Tetap'}</span></div><div class="loan-balance"><span>Sisa kewajiban</span><strong>${money(g.outstanding)}</strong></div><div class="loan-progress-row"><div class="loan-ring" style="--p:${pct}"><span>${pct}%</span></div><div class="loan-progress-info"><strong>${g.paid} dari ${g.total} lunas</strong><span>${g.nextDue?`Jatuh tempo berikutnya ${dateFmt(g.nextDue,{day:'numeric',month:'short'})}`:'Semua cicilan selesai'}</span></div></div><div class="premium-progress"><i style="width:${pct}%"></i></div><div class="loan-card-foot"><span>${g.total-g.paid} tersisa</span><span>Buka detail <b>›</b></span></div></div>`}).join('')||'<div class="panel empty">Belum ada pinjaman.</div>'}</div></div>`;
 }
 
 function renderStats(){
   const a=state.data.analytics; const monthly=a.monthlyProjection||[]; const max=Math.max(...monthly.map(x=>x.amount),1);
-  return `<div class="hero-grid"><div class="metric-card"><p class="eyebrow">Sisa tagihan</p><strong>${money(a.totalOutstanding)}</strong><p class="muted tiny">Tidak termasuk Vario</p></div><div class="metric-card"><p class="eyebrow">Bulan terberat</p><strong>${a.heaviestMonth?monthLabel(a.heaviestMonth.month):'-'}</strong><p class="muted tiny">${a.heaviestMonth?money(a.heaviestMonth.amount):''}</p></div><div class="metric-card"><p class="eyebrow">Perkiraan mulai ringan</p><strong>${a.lighterMonth?monthLabel(a.lighterMonth.month):'-'}</strong><p class="muted tiny">${a.lighterMonth?money(a.lighterMonth.amount):'Belum terdeteksi'}</p></div></div>
-  <div class="section content-grid"><div><div class="section-head"><div><h2>Proyeksi cicilan</h2><p>Tagihan belum lunas per bulan.</p></div></div><div class="panel chart-bars">${monthly.map(x=>`<div class="chart-row"><span>${monthLabel(x.month).replace(/ \d{4}$/,'')}</span><div class="chart-track"><i style="width:${x.amount/max*100}%"></i></div><strong>${money(x.amount)}</strong></div>`).join('')||'<div class="empty">Tidak ada proyeksi.</div>'}</div></div><div><div class="section-head"><div><h2>Komposisi</h2><p>Sisa kewajiban per layanan.</p></div></div><div class="panel provider-list">${providerRows(a.providerOutstanding)}</div></div></div>`;
+  const providers=Object.entries(a.providerOutstanding||{}).sort((x,y)=>y[1]-x[1]), biggest=providers[0];
+  return `<div class="stats-page">
+    <div class="stats-hero"><div><p class="eyebrow" style="color:#ffe7cb">Ringkasan finansial</p><span>Total sisa tagihan</span><strong>${money(a.totalOutstanding)}</strong><small>Di luar Vario 160</small></div><div class="stats-hero-deco">↗</div></div>
+    <div class="stat-kpi-grid">
+      <div class="stat-kpi"><span class="stat-icon">◆</span><div><p>Bulan terberat</p><strong>${a.heaviestMonth?monthLabel(a.heaviestMonth.month):'-'}</strong><small>${a.heaviestMonth?money(a.heaviestMonth.amount):''}</small></div></div>
+      <div class="stat-kpi"><span class="stat-icon">↘</span><div><p>Mulai lebih ringan</p><strong>${a.lighterMonth?monthLabel(a.lighterMonth.month):'-'}</strong><small>${a.lighterMonth?money(a.lighterMonth.amount):'Belum terdeteksi'}</small></div></div>
+      <div class="stat-kpi"><span class="stat-icon">◎</span><div><p>Layanan terbesar</p><strong>${biggest?esc(biggest[0]):'-'}</strong><small>${biggest?money(biggest[1]):''}</small></div></div>
+    </div>
+    <div class="section content-grid stats-content-grid"><div><div class="section-head"><div><h2>Proyeksi cicilan</h2><p>Tagihan belum lunas per bulan.</p></div></div><div class="panel chart-bars premium-chart">${monthly.map(x=>`<div class="chart-row"><span>${monthLabel(x.month).replace(/ \d{4}$/,'')}</span><div class="chart-track"><i style="width:${x.amount/max*100}%"></i></div><strong>${money(x.amount)}</strong></div>`).join('')||'<div class="empty">Tidak ada proyeksi.</div>'}</div></div><div><div class="section-head"><div><h2>Komposisi</h2><p>Sisa kewajiban per layanan.</p></div></div><div class="panel provider-list premium-provider-panel">${providerRows(a.providerOutstanding)}</div></div></div>
+  </div>`;
 }
 
 function renderReminders(){ const s=state.data.settings||{}; const devices=state.data.devices||[]; return `<div class="content-grid"><div class="panel"><div class="section-head"><div><h2>Jadwal pengingat</h2><p>Server memeriksa tagihan, bukan browser yang harus tetap terbuka.</p></div></div><div class="form-grid"><div class="field full"><label>Hari pengingat</label><input id="reminderDays" value="${esc(s.REMINDER_DAYS||'7,3,1,0')}" placeholder="7,3,1,0"></div><div class="field"><label>Jam lokal</label><input id="reminderHour" type="time" value="${esc(s.REMINDER_HOUR||'08:00')}"></div><div class="field"><label>Status</label><select id="reminderEnabled"><option value="TRUE" ${s.REMINDER_ENABLED==='TRUE'?'selected':''}>Aktif</option><option value="FALSE" ${s.REMINDER_ENABLED!=='TRUE'?'selected':''}>Nonaktif</option></select></div></div><div class="form-actions"><button id="saveReminderBtn" class="btn primary">Simpan pengaturan</button></div></div><div class="panel"><h2 style="margin-top:0">Perangkat</h2><p class="muted tiny">${devices.length} perangkat terdaftar.</p>${devices.length?devices.map(d=>`<div class="notice" style="margin-top:9px"><strong>${esc(d.platform||'Perangkat')}</strong><br><span class="tiny">Terakhir aktif ${esc(d.lastSeen||'-')}</span></div>`).join(''):'<div class="notice warn">Aktifkan notifikasi dari tombol 🔔 pada perangkat yang ingin menerima reminder.</div>'}</div></div>`; }
