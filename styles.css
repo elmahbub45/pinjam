@@ -1190,3 +1190,109 @@ html[data-theme="dark"] .modal::backdrop{background:rgba(3,15,20,.58)!important}
     padding-top:10px!important;
   }
 }
+
+/* =========================================================
+   V1.6 PARTIAL PAYMENT
+   GoPay Pinjam + GoPayLater
+   ========================================================= */
+.status.partial{
+  background:#FFF3E0;
+  color:#9A5B0B;
+  border-color:#E9CF9F;
+}
+.partial-kpis>div:last-child{
+  background:#EEF9FC;
+  border-color:#CAE9F1;
+}
+.partial-kpis>div:last-child b{color:#087EA4}
+.partial-payment-card{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:linear-gradient(180deg,#F8FBFC,#F3F7F9);
+}
+.partial-payment-card>span{
+  grid-column:1/-1;
+  font-size:10px;
+  color:var(--muted);
+  margin-bottom:3px;
+}
+.partial-payment-card>div{
+  display:grid;
+  gap:3px;
+  min-width:0;
+  padding:10px;
+  border-radius:14px;
+  background:var(--card);
+  border:1px solid var(--line-2);
+}
+.partial-payment-card small{
+  font-size:8px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  font-weight:900;
+}
+.partial-payment-card b{
+  font-size:13px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.partial-payment-card .remaining{
+  background:#EAF8FC;
+  border-color:#CAEAF2;
+}
+.partial-payment-card .remaining b{color:#087EA4}
+.partial-payment-form{margin-top:14px}
+.partial-note{font-size:11px!important}
+.payment-locked-note{
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:8px 11px;
+  border-radius:13px;
+  background:var(--brand-soft);
+  color:var(--brand-3);
+  font-size:9px;
+  font-weight:800;
+}
+
+html[data-theme="dark"] .status.partial{
+  background:#3A2E1D!important;
+  color:#F4C777!important;
+  border-color:#5B4728!important;
+}
+html[data-theme="dark"] .partial-payment-card{
+  background:#11242C!important;
+  border-color:var(--line)!important;
+}
+html[data-theme="dark"] .partial-payment-card>div{
+  background:#172B34!important;
+  border-color:#2A414B!important;
+}
+html[data-theme="dark"] .partial-payment-card .remaining{
+  background:#103643!important;
+  border-color:#1E596A!important;
+}
+html[data-theme="dark"] .partial-payment-card .remaining b{color:#68D4EA!important}
+html[data-theme="dark"] .partial-kpis>div:last-child{
+  background:#10323E!important;
+  border-color:#1E5362!important;
+}
+html[data-theme="dark"] .partial-kpis>div:last-child b{color:#66D2E8!important}
+html[data-theme="dark"] .payment-locked-note{
+  background:#123541!important;
+  color:#BCECF5!important;
+}
+
+@media(max-width:760px){
+  .partial-payment-card{padding:12px;gap:6px;border-radius:17px}
+  .partial-payment-card>div{padding:8px 7px;border-radius:12px}
+  .partial-payment-card b{font-size:11px}
+  .partial-payment-card small{font-size:7px}
+  .partial-payment-form{margin-top:11px}
+}
