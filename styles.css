@@ -114,7 +114,7 @@ a{text-decoration:none;color:inherit}
 .status.overdue{background:var(--redbg);color:var(--red);border-color:#EEC7C2}
 
 .provider-list{display:grid;gap:14px}
-.provider-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:end}
+.provider-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:end;padding-bottom:8px}
 .provider-row .bar{grid-column:1/-1;background:#E9EDF1;height:9px;border-radius:99px;overflow:hidden;position:relative}
 .provider-row .bar i{height:100%;display:block;background:linear-gradient(90deg,var(--brand),var(--brand-2));border-radius:99px}
 .provider-row strong{font-size:14px;letter-spacing:-.01em}
@@ -207,7 +207,7 @@ a{text-decoration:none;color:inherit}
   .table-card{overflow:auto;border-radius:24px}
   .table{min-width:680px}
   .bottom-nav{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);left:0;right:0;bottom:0;height:78px;padding:8px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(255,251,247,.96);border-top:1px solid rgba(239,225,210,.95);backdrop-filter:blur(18px);z-index:30;box-shadow:0 -8px 25px rgba(36,49,61,.06)}
-  .bottom-nav button{border:0;background:transparent;color:#8b7764;display:grid;place-items:center;gap:3px;font-size:18px}
+  .bottom-nav button{border:0;background:transparent;color:#8b7764;display:grid;place-items:center;gap:1px;font-size:18px}
   .bottom-nav button small{font-size:10px;font-weight:800}
   .bottom-nav button.active{color:var(--brand-3)}
   .bottom-nav .quick-add span{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;width:48px;height:48px;border-radius:18px;display:grid;place-items:center;margin-top:-20px;box-shadow:0 12px 24px rgba(36,59,83,.28)}
@@ -796,7 +796,7 @@ body{background:linear-gradient(180deg,#E8F3F8 0,#F2F4F7 260px,#F2F4F7 100%)}
   .wallet-balance>span{margin-bottom:0}
   .fintech-surface,.page-white-surface{margin-top:-26px!important}
   .bottom-nav{height:70px!important;padding:7px 10px calc(8px + env(safe-area-inset-bottom))!important;grid-template-columns:repeat(4,1fr)!important}
-  .bottom-nav button{font-size:17px}
+  .bottom-nav button{font-size:24px}
   .bottom-nav button small{font-size:9.5px!important}
 }
 
@@ -933,7 +933,7 @@ html:not([data-theme="dark"]) .page-white-surface{
   .topbar{
     height:66px!important;
     min-height:66px!important;
-    padding:8px 16px 3px!important;
+    padding:6px 16px 5px!important;
     align-items:flex-start!important;
   }
   .topbar .eyebrow{
@@ -957,8 +957,8 @@ html:not([data-theme="dark"]) .page-white-surface{
   .compact-wallet-hero{
     min-height:226px!important;
     padding-top:0!important;
-    padding-bottom:21px!important;
-    gap:8px!important;
+    padding-bottom:42px!important;
+    gap:14px!important;
   }
   .wallet-balance{gap:2px!important}
   .wallet-balance>strong{font-size:29px!important}
@@ -969,8 +969,8 @@ html:not([data-theme="dark"]) .page-white-surface{
   .compact-page-summary{
     min-height:142px!important;
     padding-top:2px!important;
-    padding-bottom:22px!important;
-    gap:10px!important;
+    padding-bottom:40px!important;
+    gap:12px!important;
   }
   .loans-summary-blue.compact-page-summary{min-height:150px!important}
   .blue-inline-action{padding:8px 11px!important;border-radius:12px!important;font-size:11px!important}
@@ -1157,7 +1157,7 @@ html[data-theme="dark"] .modal::backdrop{background:rgba(3,15,20,.58)!important}
   .topbar{
     height:56px!important;
     min-height:56px!important;
-    padding:6px 16px 2px!important;
+    padding:10px 16px 2px!important;
     align-items:flex-start!important;
   }
   .topbar .eyebrow{
