@@ -49,7 +49,6 @@ qs('#googleLoginBtn').addEventListener('click',async()=>{
 qs('#refreshBtn').addEventListener('click',()=>refresh(true));
 qs('#accountBtn').addEventListener('click',()=>openAccount());
 qs('#notificationBtn').addEventListener('click',()=>enableNotifications(true));
-qs('#quickAddBtn').addEventListener('click',()=>openAddLoan());
 window.addEventListener('online',()=>{state.online=true;refresh();});
 window.addEventListener('offline',()=>{state.online=false;setSync(false,'Offline · data tersimpan'); render();});
 
@@ -104,7 +103,7 @@ function renderHome(){
         <button data-go="settings"><span class="shortcut-icon">⚙</span><b>Lainnya</b><small>Pengaturan</small></button>
       </div>
 
-      ${d.vario?.remaining>0?`<div class="vario-strip"><span class="vario-icon">V</span><div><strong>Vario 160 dicatat terpisah</strong><small>Sisa pokok ${money(d.vario.remaining)}</small></div><span class="chev">›</span></div>`:''}
+      ${d.vario?.remaining>0?`<button type="button" class="vario-strip vario-action" id="varioPaymentBtn"><span class="vario-icon">V</span><div><strong>Vario 160</strong><small>Sisa pokok ${money(d.vario.remaining)} · Catat pembayaran</small></div><span class="chev">›</span></button>`:''}
 
       <div class="section fintech-section">
         <div class="section-head"><div><h2>Tagihan terdekat</h2><p>Prioritas pembayaran berikutnya.</p></div><button class="link-btn" data-go="bills">Lihat semua</button></div>
@@ -193,7 +192,7 @@ function attachViewEvents(){
   qs('#monthFilter')?.addEventListener('change',e=>{state.filter.month=e.target.value;render()});
   qs('#providerFilter')?.addEventListener('change',e=>{state.filter.provider=e.target.value;render()});
   qs('#statusFilter')?.addEventListener('change',e=>{state.filter.status=e.target.value;render()});
-  qs('#addLoanBtn')?.addEventListener('click',openAddLoan); qs('#homeAddBtn')?.addEventListener('click',openAddLoan); qs('#syncNowBtn')?.addEventListener('click',()=>refresh(true)); qs('#updateSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater')); qs('#logoutBtn')?.addEventListener('click',()=>signOut(auth)); qs('#saveReminderBtn')?.addEventListener('click',saveReminderSettings);
+  qs('#addLoanBtn')?.addEventListener('click',openAddLoan); qs('#homeAddBtn')?.addEventListener('click',openAddLoan); qs('#varioPaymentBtn')?.addEventListener('click',openVarioPayment); qs('#syncNowBtn')?.addEventListener('click',()=>refresh(true)); qs('#updateSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater')); qs('#logoutBtn')?.addEventListener('click',()=>signOut(auth)); qs('#saveReminderBtn')?.addEventListener('click',saveReminderSettings);
   qsa('[data-group]').forEach(x=>x.onclick=()=>openGroup(x.dataset.group));
 }
 
@@ -211,6 +210,25 @@ function openPaylaterUpdate(sheet='Shopee Paylater'){
 }
 function bindRemoveRows(){qsa('.remove-row').forEach(b=>b.onclick=()=>b.closest('.month-edit').remove())}
 async function savePaylater(sheet){ const entries=qsa('#paylaterRows .month-edit').map(r=>({id:r.dataset.existing||'',dueDate:r.querySelector('.upd-date').value,amount:Number(String(r.querySelector('.upd-amount').value).replace(/\D/g,''))})).filter(x=>x.dueDate&&x.amount>=0); if(!entries.length)return toast('Isi minimal satu tagihan.'); try{qs('#savePaylater').disabled=true;await api.call('updatePaylater',{sourceSheet:sheet,entries});closeModal();toast('Tagihan diperbarui dan histori disimpan.');await refresh();}catch(e){toast(e.message);qs('#savePaylater').disabled=false;} }
+
+
+function openVarioPayment(){
+  const v=state.data?.vario||{};
+  openModal('Catat Pembayaran','Vario 160',`<div class="notice"><strong>Sisa pokok saat ini ${money(v.remaining||0)}</strong><br>Pembayaran baru akan ditambahkan ke sheet VARIO160 dan sisa pokok dihitung ulang otomatis.</div><div class="form-grid" style="margin-top:14px"><div class="field"><label>Tanggal pembayaran</label><input id="varioDate" type="date" value="${todayISO()}"></div><div class="field"><label>Jumlah pembayaran</label><input id="varioAmount" inputmode="numeric" placeholder="2000000"></div><div class="field full"><label>Keterangan</label><input id="varioNote" value="Bayar" placeholder="Contoh: Bayar"></div></div><div class="form-actions"><button type="button" id="saveVarioPayment" class="btn primary">Simpan Pembayaran</button></div>`);
+  qs('#saveVarioPayment').onclick=saveVarioPayment;
+}
+
+async function saveVarioPayment(){
+  const payload={date:qs('#varioDate').value,amount:Number(String(qs('#varioAmount').value).replace(/\D/g,'')),note:qs('#varioNote').value.trim()||'Bayar'};
+  if(!payload.date||!payload.amount)return toast('Isi tanggal dan jumlah pembayaran Vario.');
+  try{
+    qs('#saveVarioPayment').disabled=true;
+    const r=await api.call('addVarioPayment',payload);
+    closeModal();
+    toast(`Pembayaran Vario disimpan. Sisa ${money(r.remaining||0)}.`);
+    await refresh();
+  }catch(e){toast(e.message);qs('#saveVarioPayment')&&(qs('#saveVarioPayment').disabled=false);}
+}
 
 function openAddLoan(){
   openModal('Tambah Pinjaman','Cicilan baru',`<div class="form-grid"><div class="field"><label>Sumber</label><select id="newSource"><option>SPinjam</option><option>GopayPinjam</option><option>Shopee Paylater</option><option>Gopaylater</option><option>Tiktok Paylater</option></select></div><div class="field"><label>Nama</label><input id="newName" placeholder="Contoh: SPinjam #13"></div><div class="field"><label>Cicilan pertama</label><input id="newDate" type="date"></div><div class="field"><label>Tenor</label><input id="newTenor" type="number" min="1" max="60" value="6"></div><div class="field"><label>Angsuran per bulan</label><input id="newAmount" inputmode="numeric" placeholder="550000"></div><div class="field"><label>Status awal</label><select id="newStatus"><option>Belum Lunas</option><option>Lunas</option></select></div></div><div class="notice" style="margin-top:14px">Untuk PayLater yang nominalnya berubah-ubah, Anda tetap bisa membuat data awal lalu memakai menu <strong>Perbarui Tagihan</strong>.</div><div class="form-actions"><button type="button" id="saveNewLoan" class="btn primary">Simpan Pinjaman</button></div>`);
