@@ -970,7 +970,7 @@ html:not([data-theme="dark"]) .page-white-surface{
     min-height:142px!important;
     padding-top:2px!important;
     padding-bottom:55px!important;
-    gap:12px!important;
+    gap:17px!important;
   }
   .loans-summary-blue.compact-page-summary{min-height:150px!important}
   .blue-inline-action{padding:8px 11px!important;border-radius:12px!important;font-size:11px!important}
