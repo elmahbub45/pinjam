@@ -75,7 +75,7 @@ function renderHome(){
   const d=state.data, a=d.analytics, next=(d.items||[]).filter(x=>x.status!=='Lunas').sort((x,y)=>x.dueDate.localeCompare(y.dueDate)).slice(0,5);
   return `
   <div class="hero-grid">
-    <div class="hero-card"><div><p class="eyebrow" style="color:#bfe0d4">Total sisa tagihan</p><div class="big-money">${money(a.totalOutstanding)}</div></div><div class="subline"><span>${a.unpaidCount} tagihan belum lunas</span><span>${a.providersCount} sumber aktif</span></div></div>
+    <div class="hero-card"><div><p class="eyebrow" style="color:#ffe7cb">Total sisa tagihan</p><div class="big-money">${money(a.totalOutstanding)}</div></div><div class="subline"><span>${a.unpaidCount} tagihan belum lunas</span><span>${a.providersCount} sumber aktif</span></div></div>
     <div class="metric-card"><div class="metric-icon">◷</div><div><p class="eyebrow">Bulan ini</p><strong>${money(a.monthTotal)}</strong><p class="muted tiny">${a.monthCount} tagihan</p></div></div>
     <div class="metric-card"><div class="metric-icon">✓</div><div><p class="eyebrow">Sudah dibayar</p><strong>${money(a.monthPaid)}</strong><p class="muted tiny">Sisa ${money(a.monthUnpaid)}</p></div></div>
   </div>
