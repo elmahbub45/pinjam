@@ -931,7 +931,7 @@ html:not([data-theme="dark"]) .page-white-surface{
 @media(max-width:760px){
   /* Global top header: less vertical weight on every page */
   .topbar{
-    height:66px!important;
+    height:55px!important;
     min-height:54px!important;
     padding:8px 16px 3px!important;
     align-items:flex-start!important;
