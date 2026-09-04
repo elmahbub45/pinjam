@@ -844,7 +844,7 @@ html[data-theme="dark"] .empty-state strong{color:var(--text)}
 @media(max-width:760px){
   /* tighter blue header: title -> balance without dead space */
   .topbar{height:78px!important;padding:10px 16px 4px!important;align-items:flex-start!important}
-  .topbar .eyebrow{margin:0 0 1px!important}.topbar h1{margin:0!important;font-size:22px!important}
+  .topbar .eyebrow{margin:0 0 6px!important}.topbar h1{margin:0!important;font-size:22px!important}
   .wallet-hero{min-height:auto!important;padding:0 17px 25px!important;gap:9px!important}
   .wallet-balance{margin-top:0!important;gap:3px!important}.wallet-balance>span{font-size:10px}.wallet-balance>strong{font-size:30px!important}.wallet-balance>small{font-size:9px!important}
   .wallet-month-line{grid-template-columns:1fr 1fr;gap:8px;padding:5px 0 2px}.wallet-month-line>div:not(.wallet-progress){padding:7px 8px;border-radius:12px;background:rgba(0,64,92,.20)}.wallet-month-line span{font-size:7.5px}.wallet-month-line strong{font-size:10.5px}.wallet-progress{grid-column:1/-1;display:flex;align-items:center;gap:8px}.wallet-progress>span{width:28px;font-size:8px}.wallet-progress i{flex:1;height:4px}
