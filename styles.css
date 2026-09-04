@@ -114,7 +114,7 @@ a{text-decoration:none;color:inherit}
 .status.overdue{background:var(--redbg);color:var(--red);border-color:#EEC7C2}
 
 .provider-list{display:grid;gap:14px}
-.provider-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:end;padding-bottom:8px}
+.provider-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:end;padding-bottom:12px}
 .provider-row .bar{grid-column:1/-1;background:#E9EDF1;height:9px;border-radius:99px;overflow:hidden;position:relative}
 .provider-row .bar i{height:100%;display:block;background:linear-gradient(90deg,var(--brand),var(--brand-2));border-radius:99px}
 .provider-row strong{font-size:14px;letter-spacing:-.01em}
