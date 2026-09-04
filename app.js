@@ -11,19 +11,45 @@ const dateFmt = (s, opt={day:'numeric',month:'short',year:'numeric'}) => s ? new
 const esc = s => String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
 const monthKey = s => String(s||'').slice(0,7);
 
-const state = { user:null, data:null, view:'home', filter:{month:'',provider:'ALL',status:'ALL'}, online:navigator.onLine };
+const state = { user:null, data:null, view:'home', filter:{month:'',provider:'ALL',status:'ALL'}, online:navigator.onLine, lastSyncAt:null, theme:localStorage.getItem('pinjam.theme')||'light' };
 let firebaseApp, auth, messaging, api;
 
 function toast(msg){ const t=qs('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._timer); t._timer=setTimeout(()=>t.classList.remove('show'),2800); }
-function setSync(ok,text){ qs('#syncDot').className='dot '+(ok?'ok':'bad'); qs('#syncText').textContent=text; }
+function setSync(ok,text){
+  const dot=qs('#syncDot'), sync=qs('#syncText'), badge=qs('#connectionBadge');
+  if(dot) dot.className='dot '+(ok?'ok':'bad'); if(sync) sync.textContent=text;
+  if(badge){
+    if(!state.online){ badge.className='connection-badge offline'; badge.textContent='Offline · hanya baca'; }
+    else if(!ok){ badge.className='connection-badge warning'; badge.textContent='Sinkronisasi bermasalah'; }
+    else { badge.className='connection-badge hidden'; }
+  }
+}
 function openModal(title, eyebrow, html){ qs('#modalTitle').textContent=title; qs('#modalEyebrow').textContent=eyebrow||''; qs('#modalBody').innerHTML=html; qs('#modal').showModal(); }
 function closeModal(){ qs('#modal').close(); }
 function saveCache(data){ try{localStorage.setItem('pinjam.bootstrap',JSON.stringify({at:Date.now(),data}));}catch{} }
 function loadCache(){ try{return JSON.parse(localStorage.getItem('pinjam.bootstrap')||'null');}catch{return null;} }
-function statusInfo(item){ if(item.status==='Lunas') return ['Lunas','paid']; if(item.overdue) return ['Terlambat','overdue']; if(item.daysUntil<=3) return [`${Math.max(item.daysUntil,0)} hari lagi`,'soon']; return ['Belum Lunas','upcoming']; }
+function statusInfo(item){ if(item.status==='Lunas') return ['Lunas','paid']; if(item.overdue) return ['Terlambat','overdue']; if(item.daysUntil<=7) return [item.daysUntil===0?'Hari ini':`${Math.max(item.daysUntil,0)} hari lagi`,'soon']; return ['Belum Lunas','upcoming']; }
 function todayISO(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Makassar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
+function applyTheme(theme=state.theme){
+  state.theme=theme==='dark'?'dark':'light';
+  document.documentElement.dataset.theme=state.theme;
+  localStorage.setItem('pinjam.theme',state.theme);
+}
+function formatSyncTime(){ return state.lastSyncAt ? new Intl.DateTimeFormat('id-ID',{hour:'2-digit',minute:'2-digit'}).format(state.lastSyncAt) : '-'; }
+function emptyState(title='Belum ada data',desc='Tidak ada item yang perlu ditampilkan.',action=''){
+  return `<div class="empty-state"><div class="empty-illustration">✓</div><strong>${esc(title)}</strong><span>${esc(desc)}</span>${action||''}</div>`;
+}
+function renderSkeleton(){
+  const el=qs('#viewContainer'); if(!el)return;
+  el.innerHTML=`<div class="skeleton-page"><div class="skeleton hero-skeleton"></div><div class="skeleton-shortcuts">${'<i class="skeleton"></i>'.repeat(4)}</div><div class="skeleton-list">${'<i class="skeleton"></i>'.repeat(5)}</div></div>`;
+}
+function paylaterHistoryFor(source){ return (state.data?.paylaterHistory||[]).filter(h=>h.sourceSheet===source); }
+function amountChangeText(h){ const oldN=Number(h.oldValue||0), newN=Number(h.newValue||0), diff=newN-oldN; return `${diff>=0?'+':'−'}${money(Math.abs(diff))}`; }
+function themeIcon(){ return state.theme==='dark'?'☀':'☾'; }
+
 
 async function boot(){
+  applyTheme(state.theme);
   qs('#dateLabel').textContent = new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Makassar',weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.warn);
   if(!cfg.FIREBASE?.apiKey){ showSetupScreen('Firebase belum dikonfigurasi di config.js.'); return; }
@@ -34,7 +60,7 @@ async function boot(){
     if(!user){ qs('#appShell').classList.add('hidden'); qs('#loginView').classList.remove('hidden'); return; }
     qs('#loginView').classList.add('hidden'); qs('#appShell').classList.remove('hidden');
     qs('#accountBtn').textContent=(user.displayName||user.email||'A').trim().charAt(0).toUpperCase();
-    bindNav(); await refresh(); setupMessaging().catch(err=>console.warn('Messaging:',err));
+    bindNav(); renderSkeleton(); await refresh(); const deepItem=new URLSearchParams(location.search).get('item'); if(deepItem&&state.data){openItem(deepItem); history.replaceState({},'',location.pathname);} setupMessaging().catch(err=>console.warn('Messaging:',err));
   });
 }
 
@@ -57,11 +83,12 @@ function bindNav(){
 }
 function navigate(view){ state.view=view; qsa('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view)); const titles={home:'Beranda',bills:'Tagihan',loans:'Pinjaman',stats:'Statistik',reminders:'Reminder',settings:'Pengaturan'}; qs('#viewTitle').textContent=titles[view]||'Pinjam'; render(); }
 
-async function refresh(manual=false){
+async async function refresh(manual=false){
   if(!state.online){ const c=loadCache(); if(c){state.data=c.data;setSync(false,'Offline · cache');render();} return; }
+  if(!state.data)renderSkeleton();
   setSync(true,'Menyinkronkan…');
-  try{ state.data=await api.call('bootstrap',{today:todayISO()}); saveCache(state.data); setSync(true,'Tersinkron sekarang'); render(); if(manual)toast('Data terbaru dimuat.'); }
-  catch(err){ const c=loadCache(); if(c){state.data=c.data;setSync(false,'Gagal sinkron · cache');render();} else setSync(false,'Gagal sinkron'); toast(err.message); }
+  try{ state.data=await api.call('bootstrap',{today:todayISO()}); state.lastSyncAt=new Date(); saveCache(state.data); setSync(true,'Tersinkron sekarang'); render(); if(manual)toast('Data terbaru dimuat.'); }
+  catch(err){ const c=loadCache(); if(c){state.data=c.data;setSync(false,'Gagal sinkron · cache');render();} else {setSync(false,'Gagal sinkron'); qs('#viewContainer').innerHTML=emptyState('Tidak dapat memuat data','Periksa koneksi lalu coba sinkronkan lagi.','<button id="retryLoadBtn" class="btn primary">Coba lagi</button>'); qs('#retryLoadBtn')?.addEventListener('click',()=>refresh(true));} toast(err.message); }
 }
 
 function render(){
@@ -77,7 +104,7 @@ function renderHome(){
   const monthPct=a.monthTotal?Math.min(100,Math.round((a.monthPaid/a.monthTotal)*100)):0;
   return `
   <div class="fintech-home">
-    <section class="wallet-hero">
+    <section class="wallet-hero compact-wallet-hero">
       <div class="wallet-headline">
         <div class="wallet-brand"><span class="wallet-logo">P</span><span>Pinjam</span></div>
         <span class="wallet-secure">● Tersinkron</span>
@@ -85,29 +112,30 @@ function renderHome(){
       <div class="wallet-balance">
         <span>Total sisa tagihan</span>
         <strong>${money(a.totalOutstanding)}</strong>
-        <small>${a.unpaidCount} tagihan belum lunas · ${a.providersCount} layanan aktif</small>
+        <small>${a.unpaidCount} belum lunas · ${a.providersCount} layanan</small>
       </div>
-      <div class="wallet-mini-grid">
+      <div class="wallet-month-line">
         <div><span>Bulan ini</span><strong>${money(a.monthTotal)}</strong></div>
         <div><span>Sudah dibayar</span><strong>${money(a.monthPaid)}</strong></div>
-        <div><span>Progress</span><strong>${monthPct}%</strong></div>
+        <div class="wallet-progress"><span>${monthPct}%</span><i><b style="width:${monthPct}%"></b></i></div>
       </div>
-      ${nearest?`<div class="wallet-next"><div><span>Tagihan berikutnya</span><strong>${esc(nearest.provider)}</strong></div><div><span>${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})}</span><strong>${money(nearest.amount)}</strong></div></div>`:''}
+      ${nearest?`<div class="wallet-next compact-next"><div><span>Tagihan berikutnya</span><strong>${esc(nearest.provider)}</strong></div><div><span>${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})}</span><strong>${money(nearest.amount)}</strong></div></div>`:''}
     </section>
 
-    <section class="fintech-surface">
-      <div class="finance-shortcuts">
-        <button data-go="bills"><span class="shortcut-icon">▤</span><b>Tagihan</b><small>Lihat semua</small></button>
-        <button id="homeAddBtn"><span class="shortcut-icon">＋</span><b>Tambah</b><small>Pinjaman baru</small></button>
-        <button data-go="stats"><span class="shortcut-icon">⌁</span><b>Statistik</b><small>Proyeksi</small></button>
-        <button data-go="settings"><span class="shortcut-icon">⚙</span><b>Lainnya</b><small>Pengaturan</small></button>
+    <section class="fintech-surface daily-surface">
+      <div class="section-head quick-title"><div><h2>Aksi cepat</h2><p>Tindakan yang paling sering dipakai.</p></div></div>
+      <div class="finance-shortcuts daily-shortcuts">
+        <button id="quickPaidBtn" ${nearest?'':'disabled'}><span class="shortcut-icon">✓</span><b>Tandai Lunas</b><small>${nearest?'Tagihan terdekat':'Tidak ada tagihan'}</small></button>
+        <button id="quickSpayBtn"><span class="shortcut-icon">↻</span><b>Update SPayLater</b><small>Nominal terbaru</small></button>
+        <button id="homeAddBtn"><span class="shortcut-icon">＋</span><b>Tambah Pinjaman</b><small>Cicilan baru</small></button>
+        <button data-go="reminders"><span class="shortcut-icon">◉</span><b>Reminder</b><small>Atur pengingat</small></button>
       </div>
 
-      ${d.vario?.remaining>0?`<button type="button" class="vario-strip vario-action" id="varioPaymentBtn"><span class="vario-icon">V</span><div><strong>Vario 160</strong><small>Sisa pokok ${money(d.vario.remaining)} · Catat pembayaran</small></div><span class="chev">›</span></button>`:''}
+      ${d.vario?.remaining>0?`<button type="button" class="vario-strip vario-action" id="varioPaymentBtn"><span class="vario-icon">V</span><div><strong>Vario 160</strong><small>Sisa ${money(d.vario.remaining)}${d.vario.latestPayment?` · terakhir bayar ${dateFmt(d.vario.latestPayment,{day:'numeric',month:'short'})}`:''}</small></div><span class="chev">›</span></button>`:''}
 
       <div class="section fintech-section">
         <div class="section-head"><div><h2>Tagihan terdekat</h2><p>Prioritas pembayaran berikutnya.</p></div><button class="link-btn" data-go="bills">Lihat semua</button></div>
-        <div class="transaction-panel">${next.length?next.map(fintechBillRow).join(''):'<div class="empty">Tidak ada tagihan belum lunas.</div>'}</div>
+        <div class="transaction-panel compact-transactions">${next.length?next.map(fintechBillRow).join(''):emptyState('Bulan terasa ringan 🎉','Tidak ada tagihan belum lunas yang perlu diperhatikan.')}</div>
       </div>
 
       <div class="section fintech-section">
@@ -132,20 +160,19 @@ function renderBills(){
   const providers=[...new Set(items.map(x=>x.provider))].sort();
   const filtered=items.filter(x=>(state.filter.month==='ALL'||monthKey(x.dueDate)===state.filter.month)&&(state.filter.provider==='ALL'||x.provider===state.filter.provider)&&(state.filter.status==='ALL'||(state.filter.status==='PAID'?x.status==='Lunas':x.status!=='Lunas'))).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
   const total=filtered.reduce((n,x)=>n+Number(x.amount||0),0), paid=filtered.filter(x=>x.status==='Lunas').length, unpaid=filtered.length-paid;
-  return `<div class="fintech-page bills-page-v14">
-    <section class="page-blue-summary">
-      <p class="eyebrow">Ringkasan tagihan</p>
-      <div class="blue-summary-main"><div><span>Total nominal</span><strong>${money(total)}</strong></div><div class="summary-count"><b>${filtered.length}</b><span>tagihan tampil</span></div></div>
+  return `<div class="fintech-page bills-page-v15">
+    <section class="page-blue-summary compact-page-summary">
+      <p class="eyebrow">Tagihan</p>
+      <div class="blue-summary-main"><div><span>Total pada filter</span><strong>${money(total)}</strong></div><div class="summary-count"><b>${filtered.length}</b><span>tagihan</span></div></div>
       <div class="summary-inline"><span><b>${paid}</b> lunas</span><span><b>${unpaid}</b> belum lunas</span></div>
     </section>
-
-    <section class="page-white-surface">
-      <div class="filter-chips">
+    <section class="page-white-surface dense-bill-surface">
+      <div class="filter-chips compact-filter-chips">
         <label><span>Bulan</span><select id="monthFilter"><option value="ALL">Semua</option>${months.map(m=>`<option value="${m}" ${m===state.filter.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></label>
         <label><span>Sumber</span><select id="providerFilter"><option value="ALL">Semua</option>${providers.map(p=>`<option ${p===state.filter.provider?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
         <label><span>Status</span><select id="statusFilter"><option value="ALL">Semua</option><option value="UNPAID" ${state.filter.status==='UNPAID'?'selected':''}>Belum lunas</option><option value="PAID" ${state.filter.status==='PAID'?'selected':''}>Lunas</option></select></label>
       </div>
-      <div class="transaction-panel bills-transactions">${filtered.length?filtered.map(fintechBillRow).join(''):'<div class="empty">Tidak ada tagihan pada filter ini.</div>'}</div>
+      <div class="transaction-panel bills-transactions compact-transactions">${filtered.length?filtered.map(fintechBillRow).join(''):emptyState('Tidak ada tagihan 🎉','Tidak ada tagihan yang cocok dengan filter ini.')}</div>
     </section>
   </div>`;
 }
@@ -153,14 +180,18 @@ function renderBills(){
 function monthLabel(m){const [y,mo]=m.split('-');return new Intl.DateTimeFormat('id-ID',{month:'long',year:'numeric'}).format(new Date(+y,+mo-1,1));}
 
 function renderLoans(){
-  const groups=state.data.groups||[];
-  const totalOutstanding=groups.reduce((n,g)=>n+Number(g.outstanding||0),0);
-  const active=groups.filter(g=>Number(g.outstanding||0)>0).length;
-  return `<div class="fintech-page loans-v14">
-    <section class="page-blue-summary loans-summary-blue"><p class="eyebrow">Portofolio pinjaman</p><div class="blue-summary-main"><div><span>Total kewajiban aktif</span><strong>${money(totalOutstanding)}</strong></div><div class="summary-count"><b>${active}</b><span>aktif</span></div></div><button id="addLoanBtn" class="blue-inline-action">＋ Tambah pinjaman</button></section>
+  const groups=state.data.groups||[], all=state.data.items||[];
+  const totalOutstanding=groups.reduce((n,g)=>n+Number(g.outstanding||0),0), active=groups.filter(g=>Number(g.outstanding||0)>0).length;
+  return `<div class="fintech-page loans-v15">
+    <section class="page-blue-summary loans-summary-blue compact-page-summary"><p class="eyebrow">Pinjaman</p><div class="blue-summary-main"><div><span>Total kewajiban aktif</span><strong>${money(totalOutstanding)}</strong></div><div class="summary-count"><b>${active}</b><span>aktif</span></div></div><button id="addLoanBtn" class="blue-inline-action">＋ Tambah pinjaman</button></section>
     <section class="page-white-surface loan-surface">
-      <div class="section-head"><div><h2>Semua pinjaman</h2><p>Ketuk item untuk melihat detail cicilan.</p></div></div>
-      <div class="finance-loan-list">${groups.map(g=>{const pct=g.total?Math.min(100,Math.round(g.paid/g.total*100)):0;return `<div class="finance-loan-row" data-group="${esc(g.key)}"><div class="loan-provider-icon">${esc((g.provider||'P').charAt(0).toUpperCase())}</div><div class="loan-row-copy"><div><strong>${esc(g.name)}</strong><span>${esc(g.provider)} · ${g.kind==='dynamic'?'Dinamis':'Cicilan tetap'}</span></div><div class="loan-row-progress"><i style="width:${pct}%"></i></div><small>${g.paid}/${g.total} lunas${g.nextDue?` · berikutnya ${dateFmt(g.nextDue,{day:'numeric',month:'short'})}`:''}</small></div><div class="loan-row-value"><strong>${money(g.outstanding)}</strong><span>${pct}%</span></div><span class="txn-chevron">›</span></div>`}).join('')||'<div class="empty">Belum ada pinjaman.</div>'}</div>
+      <div class="section-head"><div><h2>Semua pinjaman</h2><p>Progress, pembayaran, dan jadwal berikutnya.</p></div></div>
+      <div class="finance-loan-list rich-loan-list">${groups.map(g=>{
+        const rows=all.filter(x=>x.groupKey===g.key).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+        const scheduled=rows.reduce((n,x)=>n+Number(x.amount||0),0), paidAmount=rows.filter(x=>x.status==='Lunas').reduce((n,x)=>n+Number(x.amount||0),0), pct=g.total?Math.min(100,Math.round(g.paid/g.total*100)):0;
+        const installment=g.kind==='fixed'&&g.paid<g.total?`Angsuran ${g.paid+1} dari ${g.total}`:`${g.paid}/${g.total} lunas`;
+        return `<div class="finance-loan-row rich-loan-row" data-group="${esc(g.key)}"><div class="loan-provider-icon">${esc((g.provider||'P').charAt(0).toUpperCase())}</div><div class="loan-row-copy"><div><strong>${esc(g.name)}</strong><span>${esc(g.provider)} · ${g.kind==='dynamic'?'PayLater dinamis':'Cicilan tetap'}</span></div><div class="loan-row-progress"><i style="width:${pct}%"></i></div><small>${installment}${g.nextDue?` · berikutnya ${dateFmt(g.nextDue,{day:'numeric',month:'short'})}`:''}</small><em>Sudah dibayar ${money(paidAmount)} dari ${money(scheduled)}</em></div><div class="loan-row-value"><strong>${money(g.outstanding)}</strong><span>${pct}%</span></div><span class="txn-chevron">›</span></div>`;
+      }).join('')||emptyState('Belum ada pinjaman','Pinjaman baru yang ditambahkan akan muncul di sini.')}</div>
     </section>
   </div>`;
 }
@@ -182,9 +213,26 @@ function renderStats(){
   </div>`;
 }
 
-function renderReminders(){ const s=state.data.settings||{}; const devices=state.data.devices||[]; return `<div class="content-grid"><div class="panel"><div class="section-head"><div><h2>Jadwal pengingat</h2><p>Server memeriksa tagihan, bukan browser yang harus tetap terbuka.</p></div></div><div class="form-grid"><div class="field full"><label>Hari pengingat</label><input id="reminderDays" value="${esc(s.REMINDER_DAYS||'7,3,1,0')}" placeholder="7,3,1,0"></div><div class="field"><label>Jam lokal</label><input id="reminderHour" type="time" value="${esc(s.REMINDER_HOUR||'08:00')}"></div><div class="field"><label>Status</label><select id="reminderEnabled"><option value="TRUE" ${s.REMINDER_ENABLED==='TRUE'?'selected':''}>Aktif</option><option value="FALSE" ${s.REMINDER_ENABLED!=='TRUE'?'selected':''}>Nonaktif</option></select></div></div><div class="form-actions"><button id="saveReminderBtn" class="btn primary">Simpan pengaturan</button></div></div><div class="panel"><h2 style="margin-top:0">Perangkat</h2><p class="muted tiny">${devices.length} perangkat terdaftar.</p>${devices.length?devices.map(d=>`<div class="notice" style="margin-top:9px"><strong>${esc(d.platform||'Perangkat')}</strong><br><span class="tiny">Terakhir aktif ${esc(d.lastSeen||'-')}</span></div>`).join(''):'<div class="notice warn">Aktifkan notifikasi dari tombol 🔔 pada perangkat yang ingin menerima reminder.</div>'}</div></div>`; }
+function renderReminders(){
+  const s=state.data.settings||{}, devices=state.data.devices||[], days=new Set(String(s.REMINDER_DAYS||'7,3,1,0').split(',').map(x=>x.trim()));
+  const toggle=(id,label,desc,val)=>`<label class="reminder-toggle"><span><b>${label}</b><small>${desc}</small></span><input id="${id}" type="checkbox" ${days.has(String(val))?'checked':''}><i></i></label>`;
+  return `<div class="reminder-layout"><div class="panel reminder-panel"><div class="section-head"><div><h2>Pengingat tagihan</h2><p>Pilih waktu pengingat yang Anda inginkan.</p></div></div>
+    <label class="master-toggle"><span><b>Reminder aktif</b><small>Matikan sementara tanpa menghapus pengaturan.</small></span><input id="reminderEnabledToggle" type="checkbox" ${s.REMINDER_ENABLED==='TRUE'?'checked':''}><i></i></label>
+    <div class="reminder-toggle-list">${toggle('reminderH7','H-7','Seminggu sebelum jatuh tempo',7)}${toggle('reminderH3','H-3','Tiga hari sebelum jatuh tempo',3)}${toggle('reminderH1','H-1','Sehari sebelum jatuh tempo',1)}${toggle('reminderH0','Hari H','Saat jatuh tempo',0)}</div>
+    <div class="field reminder-time"><label>Waktu pengingat</label><input id="reminderHour" type="time" value="${esc(s.REMINDER_HOUR||'08:00')}"></div>
+    <div class="form-actions"><button id="saveReminderBtn" class="btn primary">Simpan pengaturan</button></div>
+  </div><div class="panel device-panel"><div class="section-head"><div><h2>Perangkat</h2><p>${devices.length} perangkat menerima notifikasi.</p></div></div>${devices.length?devices.map(d=>`<div class="device-row"><span class="device-icon">${/android/i.test(d.platform||'')?'▯':'▣'}</span><div><strong>${esc(d.platform||'Perangkat')}</strong><small>Terakhir aktif ${esc(d.lastSeen||'-')}</small></div><span class="device-ok">Aktif</span></div>`).join(''):emptyState('Belum ada perangkat','Tekan ikon lonceng untuk mengaktifkan notifikasi di perangkat ini.')}</div></div>`;
+}
 
-function renderSettings(){ return `<div class="cards"><div class="loan-card"><h3>Sinkronisasi</h3><p>Sheet lama tetap sumber kebenaran.</p><div class="amount" style="font-size:16px">LEGACY_DIRECT</div><button id="syncNowBtn" class="btn secondary">Sinkronkan sekarang</button></div><div class="loan-card"><h3>SPayLater</h3><p>Perbarui nominal hasil akumulasi dari Shopee tanpa menghapus histori.</p><div class="amount" style="font-size:16px">Mode Dinamis</div><button id="updateSpayBtn" class="btn secondary">Perbarui SPayLater</button></div><div class="loan-card"><h3>Akun</h3><p>${esc(state.user?.email||'')}</p><div class="amount" style="font-size:16px">${esc(state.user?.displayName||'Pengguna')}</div><button id="logoutBtn" class="btn ghost">Keluar</button></div></div>`; }
+function renderSettings(){
+  return `<div class="settings-grid">
+    <div class="settings-card"><span class="settings-icon">◫</span><div><h3>Pinjaman</h3><p>Lihat semua pinjaman, progres cicilan, dan jadwal berikutnya.</p><small>${(state.data.groups||[]).length} kelompok pinjaman</small></div><button id="openLoansBtn" class="btn secondary">Buka</button></div>
+    <div class="settings-card"><span class="settings-icon">↻</span><div><h3>Sinkronisasi</h3><p>Spreadsheet lama tetap menjadi sumber data utama.</p><small>Terakhir sinkron ${formatSyncTime()}</small></div><button id="syncNowBtn" class="btn secondary">Sinkronkan</button></div>
+    <div class="settings-card"><span class="settings-icon">S</span><div><h3>SPayLater</h3><p>Perbarui nominal akumulasi tanpa kehilangan histori perubahan.</p><small>Mode dinamis</small></div><button id="updateSpayBtn" class="btn secondary">Perbarui</button></div>
+    <div class="settings-card"><span class="settings-icon">${themeIcon()}</span><div><h3>Tampilan</h3><p>Gunakan mode terang atau gelap sesuai kenyamanan.</p><small>${state.theme==='dark'?'Mode gelap aktif':'Mode terang aktif'}</small></div><button id="themeToggle" class="btn secondary">${state.theme==='dark'?'Gunakan terang':'Gunakan gelap'}</button></div>
+    <div class="settings-card"><span class="settings-icon">M</span><div><h3>Akun</h3><p>${esc(state.user?.email||'')}</p><small>${esc(state.user?.displayName||'Pengguna')}</small></div><button id="accountDetailBtn" class="btn secondary">Detail akun</button></div>
+  </div>`;
+}
 
 function attachViewEvents(){
   qsa('[data-go]').forEach(b=>b.onclick=()=>navigate(b.dataset.go));
@@ -192,20 +240,36 @@ function attachViewEvents(){
   qs('#monthFilter')?.addEventListener('change',e=>{state.filter.month=e.target.value;render()});
   qs('#providerFilter')?.addEventListener('change',e=>{state.filter.provider=e.target.value;render()});
   qs('#statusFilter')?.addEventListener('change',e=>{state.filter.status=e.target.value;render()});
-  qs('#addLoanBtn')?.addEventListener('click',openAddLoan); qs('#homeAddBtn')?.addEventListener('click',openAddLoan); qs('#varioPaymentBtn')?.addEventListener('click',openVarioPayment); qs('#syncNowBtn')?.addEventListener('click',()=>refresh(true)); qs('#updateSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater')); qs('#logoutBtn')?.addEventListener('click',()=>signOut(auth)); qs('#saveReminderBtn')?.addEventListener('click',saveReminderSettings);
+  qs('#addLoanBtn')?.addEventListener('click',openAddLoan); qs('#homeAddBtn')?.addEventListener('click',openAddLoan); qs('#varioPaymentBtn')?.addEventListener('click',openVarioPayment);
+  qs('#quickPaidBtn')?.addEventListener('click',()=>{const x=(state.data.items||[]).filter(x=>x.status!=='Lunas').sort((a,b)=>a.dueDate.localeCompare(b.dueDate))[0]; if(x)openItem(x.id)});
+  qs('#quickSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater'));
+  qs('#syncNowBtn')?.addEventListener('click',()=>refresh(true)); qs('#updateSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater')); qs('#saveReminderBtn')?.addEventListener('click',saveReminderSettings);
+  qs('#themeToggle')?.addEventListener('click',()=>{applyTheme(state.theme==='dark'?'light':'dark');render();toast(state.theme==='dark'?'Mode gelap aktif.':'Mode terang aktif.');});
+  qs('#accountDetailBtn')?.addEventListener('click',openAccount); qs('#openLoansBtn')?.addEventListener('click',()=>navigate('loans'));
   qsa('[data-group]').forEach(x=>x.onclick=()=>openGroup(x.dataset.group));
 }
 
-function openItem(id){ const x=(state.data.items||[]).find(i=>i.id===id); if(!x)return; const [label,cls]=statusInfo(x); openModal(x.name,x.provider,`<div class="notice ${cls==='overdue'?'danger':cls==='soon'?'warn':''}"><strong>${money(x.amount)}</strong><br>${dateFmt(x.dueDate)} · <span class="status ${cls}" style="margin-top:8px">${label}</span></div><div style="margin-top:15px" class="form-grid"><div class="field"><label>Sumber</label><input value="${esc(x.provider)}" disabled></div><div class="field"><label>Jenis</label><input value="${x.kind==='dynamic'?'PayLater dinamis':'Cicilan tetap'}" disabled></div></div><div class="form-actions">${x.kind==='dynamic'?`<button type="button" id="editDynamicBtn" class="btn secondary">Perbarui</button>`:''}${x.status!=='Lunas'?`<button type="button" id="markPaidBtn" class="btn primary">✓ Tandai Lunas</button>`:`<button type="button" id="markUnpaidBtn" class="btn ghost">Batalkan Lunas</button>`}</div>`);
+function openItem(id){
+  const x=(state.data.items||[]).find(i=>i.id===id); if(!x)return; const [label,cls]=statusInfo(x);
+  const g=(state.data.groups||[]).find(g=>g.key===x.groupKey), rows=(state.data.items||[]).filter(i=>i.groupKey===x.groupKey).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)), idx=Math.max(0,rows.findIndex(i=>i.id===x.id));
+  const paidAmount=rows.filter(i=>i.status==='Lunas').reduce((n,i)=>n+Number(i.amount||0),0), scheduled=rows.reduce((n,i)=>n+Number(i.amount||0),0);
+  openModal(x.name,x.provider,`<div class="detail-amount ${cls}"><span>${dateFmt(x.dueDate)}</span><strong>${money(x.amount)}</strong><span class="status ${cls}">${label}</span></div><div class="detail-kpis"><div><span>Posisi</span><b>${x.kind==='fixed'?`${idx+1} / ${rows.length}`:'Dinamis'}</b></div><div><span>Sudah dibayar</span><b>${money(paidAmount)}</b></div><div><span>Total jadwal</span><b>${money(scheduled)}</b></div></div><div class="detail-progress"><i style="width:${g?.total?Math.round(g.paid/g.total*100):0}%"></i></div><div class="form-actions">${x.kind==='dynamic'?`<button type="button" id="editDynamicBtn" class="btn secondary">Perbarui</button>`:''}${x.status!=='Lunas'?`<button type="button" id="markPaidBtn" class="btn primary">✓ Tandai Lunas</button>`:`<button type="button" id="markUnpaidBtn" class="btn ghost">Batalkan Lunas</button>`}</div>`);
   qs('#markPaidBtn')?.addEventListener('click',()=>changePaid(x,true)); qs('#markUnpaidBtn')?.addEventListener('click',()=>changePaid(x,false)); qs('#editDynamicBtn')?.addEventListener('click',()=>openPaylaterUpdate(x.sourceSheet));
 }
 async function changePaid(x,paid){ try{qs('#markPaidBtn')&&(qs('#markPaidBtn').disabled=true); await api.call('setStatus',{id:x.id,sourceSheet:x.sourceSheet,sourceRow:x.sourceRow,expectedName:x.name,expectedDueDate:x.dueDate,status:paid?'Lunas':'Belum Lunas'}); closeModal();toast(paid?'Tagihan ditandai lunas.':'Status dikembalikan belum lunas.');await refresh();}catch(e){toast(e.message);} }
 
-function openGroup(key){ const g=(state.data.groups||[]).find(x=>x.key===key); if(!g)return; const rows=(state.data.items||[]).filter(x=>x.groupKey===key).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)); openModal(g.name,g.provider,`<div class="notice"><strong>Sisa ${money(g.outstanding)}</strong><br>${g.paid} dari ${g.total} cicilan sudah lunas.</div><div class="bill-list" style="margin-top:14px">${rows.map(billRow).join('')}</div>${g.kind==='dynamic'?'<div class="form-actions"><button type="button" id="groupUpdateBtn" class="btn primary">Perbarui tagihan</button></div>':''}`); qsa('#modalBody [data-item]').forEach(r=>r.onclick=()=>{closeModal();openItem(r.dataset.item)}); qs('#groupUpdateBtn')?.addEventListener('click',()=>openPaylaterUpdate(g.sourceSheet)); }
+function openGroup(key){
+  const g=(state.data.groups||[]).find(x=>x.key===key); if(!g)return; const rows=(state.data.items||[]).filter(x=>x.groupKey===key).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const scheduled=rows.reduce((n,x)=>n+Number(x.amount||0),0), paidAmount=rows.filter(x=>x.status==='Lunas').reduce((n,x)=>n+Number(x.amount||0),0), pct=g.total?Math.round(g.paid/g.total*100):0;
+  const history=paylaterHistoryFor(g.sourceSheet).slice(0,5);
+  openModal(g.name,g.provider,`<div class="group-summary"><div><span>Sisa</span><strong>${money(g.outstanding)}</strong><small>${g.paid} dari ${g.total} cicilan lunas</small></div><div class="group-ring" style="--p:${pct}"><b>${pct}%</b></div></div><div class="detail-progress"><i style="width:${pct}%"></i></div><div class="detail-kpis"><div><span>Sudah dibayar</span><b>${money(paidAmount)}</b></div><div><span>Total jadwal</span><b>${money(scheduled)}</b></div><div><span>Berikutnya</span><b>${g.nextDue?dateFmt(g.nextDue,{day:'numeric',month:'short'}):'-'}</b></div></div><div class="mini-history-list">${rows.slice(-6).map(r=>`<div class="mini-history-row" data-item="${esc(r.id)}"><span>${dateFmt(r.dueDate,{day:'numeric',month:'short'})}</span><div><b>${money(r.amount)}</b><small>${r.status}</small></div></div>`).join('')}</div>${g.kind==='dynamic'&&history.length?`<div class="history-block"><h3>Perubahan terbaru</h3>${history.map(h=>`<div class="history-row"><div><b>${h.field==='amount'?'Nominal diperbarui':'Jadwal diperbarui'}</b><small>${h.timestamp}</small></div><span>${h.field==='amount'?amountChangeText(h):esc(h.newValue)}</span></div>`).join('')}</div>`:''}${g.kind==='dynamic'?'<div class="form-actions"><button type="button" id="groupUpdateBtn" class="btn primary">Perbarui tagihan</button></div>':''}`);
+  qsa('#modalBody [data-item]').forEach(r=>r.onclick=()=>{closeModal();openItem(r.dataset.item)}); qs('#groupUpdateBtn')?.addEventListener('click',()=>openPaylaterUpdate(g.sourceSheet));
+}
 
 function openPaylaterUpdate(sheet='Shopee Paylater'){
   const rows=(state.data.items||[]).filter(x=>x.sourceSheet===sheet).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
-  openModal('Perbarui Tagihan',sheet,`<div class="notice">Masukkan angka terbaru dari aplikasi ${esc(sheet)}. Nilai lama akan dicatat di histori sebelum diubah.</div><div id="paylaterRows" style="margin-top:12px">${rows.map(x=>`<div class="month-edit" data-existing="${esc(x.id)}"><input class="field-inline upd-date" type="date" value="${x.dueDate}"><input class="field-inline upd-amount" inputmode="numeric" value="${Number(x.amount)}"><span></span></div>`).join('')}</div><button type="button" id="addMonthRow" class="btn secondary">＋ Tambah bulan</button><div class="form-actions"><button type="button" id="savePaylater" class="btn primary">Simpan perubahan</button></div>`);
+  const history=paylaterHistoryFor(sheet).slice(0,8), last=history[0];
+  openModal('Perbarui Tagihan',sheet,`<div class="notice">Masukkan angka terbaru dari aplikasi ${esc(sheet)}. Nilai lama tetap tersimpan dalam histori.${last?`<br><strong>Terakhir diperbarui: ${esc(last.timestamp)}</strong>`:''}</div><div id="paylaterRows" style="margin-top:12px">${rows.map(x=>`<div class="month-edit" data-existing="${esc(x.id)}"><input class="field-inline upd-date" type="date" value="${x.dueDate}"><input class="field-inline upd-amount" inputmode="numeric" value="${Number(x.amount)}"><span></span></div>`).join('')}</div><button type="button" id="addMonthRow" class="btn secondary">＋ Tambah bulan</button>${history.length?`<div class="history-block"><h3>Riwayat perubahan</h3>${history.map(h=>`<div class="history-row"><div><b>${h.field==='amount'?'Nominal':'Tanggal'}</b><small>${h.timestamp}</small></div><span>${h.field==='amount'?`${money(h.oldValue)} → ${money(h.newValue)} (${amountChangeText(h)})`:esc(h.oldValue)+' → '+esc(h.newValue)}</span></div>`).join('')}</div>`:''}<div class="form-actions"><button type="button" id="savePaylater" class="btn primary">Simpan perubahan</button></div>`);
   qs('#addMonthRow').onclick=()=>{qs('#paylaterRows').insertAdjacentHTML('beforeend',`<div class="month-edit"><input class="field-inline upd-date" type="date"><input class="field-inline upd-amount" inputmode="numeric" placeholder="Nominal"><button type="button" class="btn ghost remove-row">×</button></div>`); bindRemoveRows();}; bindRemoveRows(); qs('#savePaylater').onclick=()=>savePaylater(sheet);
 }
 function bindRemoveRows(){qsa('.remove-row').forEach(b=>b.onclick=()=>b.closest('.month-edit').remove())}
@@ -213,8 +277,8 @@ async function savePaylater(sheet){ const entries=qsa('#paylaterRows .month-edit
 
 
 function openVarioPayment(){
-  const v=state.data?.vario||{};
-  openModal('Catat Pembayaran','Vario 160',`<div class="notice"><strong>Sisa pokok saat ini ${money(v.remaining||0)}</strong><br>Pembayaran baru akan ditambahkan ke sheet VARIO160 dan sisa pokok dihitung ulang otomatis.</div><div class="form-grid" style="margin-top:14px"><div class="field"><label>Tanggal pembayaran</label><input id="varioDate" type="date" value="${todayISO()}"></div><div class="field"><label>Jumlah pembayaran</label><input id="varioAmount" inputmode="numeric" placeholder="2000000"></div><div class="field full"><label>Keterangan</label><input id="varioNote" value="Bayar" placeholder="Contoh: Bayar"></div></div><div class="form-actions"><button type="button" id="saveVarioPayment" class="btn primary">Simpan Pembayaran</button></div>`);
+  const v=state.data?.vario||{}, history=v.history||[];
+  openModal('Vario 160','Pembayaran & riwayat',`<div class="vario-balance"><span>Sisa pokok</span><strong>${money(v.remaining||0)}</strong><small>Terbayar ${money(v.totalPaid||0)} dari ${money(v.original||0)}</small></div>${history.length?`<div class="history-block vario-history"><h3>Riwayat pembayaran</h3>${history.slice().reverse().slice(0,8).map(h=>`<div class="history-row"><div><b>${esc(h.note||'Bayar')}</b><small>${h.date?dateFmt(h.date):'-'}</small></div><span>${money(h.amount)}</span></div>`).join('')}</div>`:''}<div class="section-divider"></div><h3 class="modal-subtitle">Catat pembayaran baru</h3><div class="form-grid"><div class="field"><label>Tanggal pembayaran</label><input id="varioDate" type="date" value="${todayISO()}"></div><div class="field"><label>Jumlah pembayaran</label><input id="varioAmount" inputmode="numeric" placeholder="2000000"></div><div class="field full"><label>Keterangan</label><input id="varioNote" value="Bayar" placeholder="Contoh: Bayar"></div></div><div class="form-actions"><button type="button" id="saveVarioPayment" class="btn primary">Simpan Pembayaran</button></div>`);
   qs('#saveVarioPayment').onclick=saveVarioPayment;
 }
 
@@ -236,8 +300,15 @@ function openAddLoan(){
 }
 async function saveNewLoan(){ const p={sourceSheet:qs('#newSource').value,name:qs('#newName').value.trim(),firstDueDate:qs('#newDate').value,tenor:Number(qs('#newTenor').value),amount:Number(String(qs('#newAmount').value).replace(/\D/g,'')),status:qs('#newStatus').value}; if(!p.name||!p.firstDueDate||!p.tenor||!p.amount)return toast('Lengkapi nama, tanggal, tenor, dan nominal.'); try{qs('#saveNewLoan').disabled=true;await api.call('createLoan',p);closeModal();toast('Pinjaman baru ditambahkan.');await refresh();navigate('loans');}catch(e){toast(e.message);qs('#saveNewLoan').disabled=false;} }
 
-async function saveReminderSettings(){ const payload={REMINDER_DAYS:qs('#reminderDays').value.trim(),REMINDER_HOUR:qs('#reminderHour').value,REMINDER_ENABLED:qs('#reminderEnabled').value}; try{await api.call('updateSettings',payload);toast('Pengaturan reminder disimpan.');await refresh();}catch(e){toast(e.message);} }
-function openAccount(){openModal('Akun','Pinjam',`<p><strong>${esc(state.user?.displayName||'')}</strong><br><span class="muted">${esc(state.user?.email||'')}</span></p><div class="form-actions"><button type="button" id="accountLogout" class="btn ghost">Keluar</button></div>`);qs('#accountLogout').onclick=()=>{closeModal();signOut(auth)}}
+async async function saveReminderSettings(){
+  const selected=[]; if(qs('#reminderH7')?.checked)selected.push(7); if(qs('#reminderH3')?.checked)selected.push(3); if(qs('#reminderH1')?.checked)selected.push(1); if(qs('#reminderH0')?.checked)selected.push(0);
+  if(!selected.length && qs('#reminderEnabledToggle')?.checked)return toast('Pilih minimal satu waktu pengingat.');
+  const payload={REMINDER_DAYS:selected.join(','),REMINDER_HOUR:qs('#reminderHour').value,REMINDER_ENABLED:qs('#reminderEnabledToggle')?.checked?'TRUE':'FALSE'};
+  try{await api.call('updateSettings',payload);toast('Pengaturan reminder disimpan.');await refresh();}catch(e){toast(e.message);}
+}
+function openAccount(){
+  openModal('Akun','Pinjam',`<div class="account-profile"><div class="account-avatar">${esc((state.user?.displayName||state.user?.email||'M').charAt(0).toUpperCase())}</div><div><strong>${esc(state.user?.displayName||'Pengguna')}</strong><span>${esc(state.user?.email||'')}</span></div></div><div class="account-meta"><div><span>Sinkron terakhir</span><b>${formatSyncTime()}</b></div><div><span>Notifikasi</span><b>${Notification.permission==='granted'?'Aktif':'Belum aktif'}</b></div><div><span>Tampilan</span><b>${state.theme==='dark'?'Gelap':'Terang'}</b></div></div><div class="form-actions"><button type="button" id="accountLogout" class="btn ghost">Keluar</button></div>`); qs('#accountLogout').onclick=()=>{closeModal();signOut(auth)};
+}
 
 async function setupMessaging(){
   if(!cfg.VAPID_KEY||!await messagingSupported()) return;
@@ -256,6 +327,6 @@ async function enableNotifications(showFeedback){
     if(showFeedback)toast('Notifikasi aktif. Registrasi perangkat disinkronkan.');
   }catch(e){if(showFeedback)toast(e.message);}
 }
-async function registerFid(fid){ if(!fid)return; await api.call('registerDevice',{fid,platform:navigator.userAgentData?.platform||navigator.platform||'Web',userAgent:navigator.userAgent,permission:Notification.permission,appVersion:cfg.APP_VERSION||'1.0.0'}); }
+async function registerFid(fid){ if(!fid)return; await api.call('registerDevice',{fid,platform:navigator.userAgentData?.platform||navigator.platform||'Web',userAgent:navigator.userAgent,permission:Notification.permission,appVersion:'1.5.0'}); }
 
 boot();
