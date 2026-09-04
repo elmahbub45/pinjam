@@ -83,7 +83,7 @@ function bindNav(){
 }
 function navigate(view){ state.view=view; qsa('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view)); const titles={home:'Beranda',bills:'Tagihan',loans:'Pinjaman',stats:'Statistik',reminders:'Reminder',settings:'Pengaturan'}; qs('#viewTitle').textContent=titles[view]||'Pinjam'; render(); }
 
-async async function refresh(manual=false){
+async function refresh(manual=false){
   if(!state.online){ const c=loadCache(); if(c){state.data=c.data;setSync(false,'Offline · cache');render();} return; }
   if(!state.data)renderSkeleton();
   setSync(true,'Menyinkronkan…');
@@ -300,7 +300,7 @@ function openAddLoan(){
 }
 async function saveNewLoan(){ const p={sourceSheet:qs('#newSource').value,name:qs('#newName').value.trim(),firstDueDate:qs('#newDate').value,tenor:Number(qs('#newTenor').value),amount:Number(String(qs('#newAmount').value).replace(/\D/g,'')),status:qs('#newStatus').value}; if(!p.name||!p.firstDueDate||!p.tenor||!p.amount)return toast('Lengkapi nama, tanggal, tenor, dan nominal.'); try{qs('#saveNewLoan').disabled=true;await api.call('createLoan',p);closeModal();toast('Pinjaman baru ditambahkan.');await refresh();navigate('loans');}catch(e){toast(e.message);qs('#saveNewLoan').disabled=false;} }
 
-async async function saveReminderSettings(){
+async function saveReminderSettings(){
   const selected=[]; if(qs('#reminderH7')?.checked)selected.push(7); if(qs('#reminderH3')?.checked)selected.push(3); if(qs('#reminderH1')?.checked)selected.push(1); if(qs('#reminderH0')?.checked)selected.push(0);
   if(!selected.length && qs('#reminderEnabledToggle')?.checked)return toast('Pilih minimal satu waktu pengingat.');
   const payload={REMINDER_DAYS:selected.join(','),REMINDER_HOUR:qs('#reminderHour').value,REMINDER_ENABLED:qs('#reminderEnabledToggle')?.checked?'TRUE':'FALSE'};
