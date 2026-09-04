@@ -931,8 +931,8 @@ html:not([data-theme="dark"]) .page-white-surface{
 @media(max-width:760px){
   /* Global top header: less vertical weight on every page */
   .topbar{
-    height:55px!important;
-    min-height:54px!important;
+    height:66px!important;
+    min-height:66px!important;
     padding:8px 16px 3px!important;
     align-items:flex-start!important;
   }
@@ -955,8 +955,8 @@ html:not([data-theme="dark"]) .page-white-surface{
 
   /* Home blue balance area also becomes slightly shorter */
   .compact-wallet-hero{
-    min-height:260px!important;
-    padding-top:20px!important;
+    min-height:226px!important;
+    padding-top:0!important;
     padding-bottom:21px!important;
     gap:8px!important;
   }
@@ -968,8 +968,8 @@ html:not([data-theme="dark"]) .page-white-surface{
   /* Summary headers on Tagihan / Pinjaman / Statistik */
   .compact-page-summary{
     min-height:142px!important;
-    padding-top:20px!important;
-    padding-bottom:40px!important;
+    padding-top:2px!important;
+    padding-bottom:22px!important;
     gap:10px!important;
   }
   .loans-summary-blue.compact-page-summary{min-height:150px!important}
@@ -1145,5 +1145,48 @@ html[data-theme="dark"] .modal::backdrop{background:rgba(3,15,20,.58)!important}
   html[data-theme="dark"] body,
   html[data-theme="dark"] .view-container{
     background:linear-gradient(180deg,#08789B 0,#0B6882 170px,#10252D 300px,#10252D 100%)!important;
+  }
+}
+
+/* =========================================================
+   V1.5.4 TOPBAR BALANCE HOTFIX
+   - topbar mobile lebih pendek
+   - beri breathing room antara topbar dan hero content
+   ========================================================= */
+@media(max-width:760px){
+  .topbar{
+    height:56px!important;
+    min-height:56px!important;
+    padding:6px 16px 2px!important;
+    align-items:flex-start!important;
+  }
+  .topbar .eyebrow{
+    margin:0 0 1px!important;
+    font-size:7.5px!important;
+    line-height:1.08!important;
+    letter-spacing:.14em!important;
+  }
+  .topbar h1{
+    margin:0!important;
+    font-size:19px!important;
+    line-height:1!important;
+  }
+  .top-actions{gap:5px!important}
+  .icon-btn,.avatar{
+    width:34px!important;
+    height:34px!important;
+    border-radius:11px!important;
+  }
+
+  /* Jarak yang sengaja ditambahkan agar Total Sisa Tagihan
+     tidak menempel pada batas bawah topbar. */
+  .compact-wallet-hero{
+    padding-top:12px!important;
+  }
+
+  /* Halaman selain Beranda juga mendapat jarak yang seimbang
+     setelah topbar yang baru lebih pendek. */
+  .compact-page-summary{
+    padding-top:10px!important;
   }
 }
