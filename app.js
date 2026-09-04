@@ -81,7 +81,7 @@ function renderHome(){
     <div class="hero-grid premium-hero-grid">
       <div class="hero-card luxury-hero">
         <div class="hero-topline">
-          <div><p class="eyebrow" style="color:#ffe7cb">Total sisa tagihan</p><div class="big-money">${money(a.totalOutstanding)}</div></div>
+          <div><p class="eyebrow" style="color:#DDE8F1">Total sisa tagihan</p><div class="big-money">${money(a.totalOutstanding)}</div></div>
           <div class="hero-orb">Rp</div>
         </div>
         <div class="hero-bottom">
@@ -134,7 +134,7 @@ function renderStats(){
   const a=state.data.analytics; const monthly=a.monthlyProjection||[]; const max=Math.max(...monthly.map(x=>x.amount),1);
   const providers=Object.entries(a.providerOutstanding||{}).sort((x,y)=>y[1]-x[1]), biggest=providers[0];
   return `<div class="stats-page">
-    <div class="stats-hero"><div><p class="eyebrow" style="color:#ffe7cb">Ringkasan finansial</p><span>Total sisa tagihan</span><strong>${money(a.totalOutstanding)}</strong><small>Di luar Vario 160</small></div><div class="stats-hero-deco">↗</div></div>
+    <div class="stats-hero"><div><p class="eyebrow" style="color:#DDE8F1">Ringkasan finansial</p><span>Total sisa tagihan</span><strong>${money(a.totalOutstanding)}</strong><small>Di luar Vario 160</small></div><div class="stats-hero-deco">↗</div></div>
     <div class="stat-kpi-grid">
       <div class="stat-kpi"><span class="stat-icon">◆</span><div><p>Bulan terberat</p><strong>${a.heaviestMonth?monthLabel(a.heaviestMonth.month):'-'}</strong><small>${a.heaviestMonth?money(a.heaviestMonth.amount):''}</small></div></div>
       <div class="stat-kpi"><span class="stat-icon">↘</span><div><p>Mulai lebih ringan</p><strong>${a.lighterMonth?monthLabel(a.lighterMonth.month):'-'}</strong><small>${a.lighterMonth?money(a.lighterMonth.amount):'Belum terdeteksi'}</small></div></div>
