@@ -932,7 +932,7 @@ html:not([data-theme="dark"]) .page-white-surface{
   /* Global top header: less vertical weight on every page */
   .topbar{
     height:66px!important;
-    min-height:66px!important;
+    min-height:54px!important;
     padding:8px 16px 3px!important;
     align-items:flex-start!important;
   }
@@ -955,8 +955,8 @@ html:not([data-theme="dark"]) .page-white-surface{
 
   /* Home blue balance area also becomes slightly shorter */
   .compact-wallet-hero{
-    min-height:226px!important;
-    padding-top:0!important;
+    min-height:260px!important;
+    padding-top:20px!important;
     padding-bottom:21px!important;
     gap:8px!important;
   }
@@ -968,8 +968,8 @@ html:not([data-theme="dark"]) .page-white-surface{
   /* Summary headers on Tagihan / Pinjaman / Statistik */
   .compact-page-summary{
     min-height:142px!important;
-    padding-top:2px!important;
-    padding-bottom:22px!important;
+    padding-top:20px!important;
+    padding-bottom:40px!important;
     gap:10px!important;
   }
   .loans-summary-blue.compact-page-summary{min-height:150px!important}
