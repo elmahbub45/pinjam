@@ -14,7 +14,7 @@ importScripts('./config.js');
 importScripts('https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging-compat.js');
 
-const CACHE = 'pinjam-shell-v1.5.2';
+const CACHE = 'pinjam-shell-v1.5.3';
 const ASSETS = ['./','index.html','styles.css','app.js','api.js','config.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png'];
 const cfg = self.PINJAM_CONFIG || {};
 

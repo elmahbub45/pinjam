@@ -914,3 +914,236 @@ html:not([data-theme="dark"]) .page-white-surface{
     background:#F3F5F7!important;
   }
 }
+
+
+/* =========================================================
+   V1.5.3 HEADER + DARK COMFORT + PAYLATER DETAIL POLISH
+   ========================================================= */
+.mini-history-head{
+  margin:15px 2px 7px;
+  font-size:10px;
+  font-weight:900;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+@media(max-width:760px){
+  /* Global top header: less vertical weight on every page */
+  .topbar{
+    height:66px!important;
+    min-height:66px!important;
+    padding:8px 16px 3px!important;
+    align-items:flex-start!important;
+  }
+  .topbar .eyebrow{
+    margin:0 0 1px!important;
+    font-size:8px!important;
+    line-height:1.15!important;
+  }
+  .topbar h1{
+    margin:0!important;
+    font-size:20px!important;
+    line-height:1.02!important;
+  }
+  .top-actions{gap:6px!important}
+  .icon-btn,.avatar{
+    width:36px!important;
+    height:36px!important;
+    border-radius:12px!important;
+  }
+
+  /* Home blue balance area also becomes slightly shorter */
+  .compact-wallet-hero{
+    min-height:226px!important;
+    padding-top:0!important;
+    padding-bottom:21px!important;
+    gap:8px!important;
+  }
+  .wallet-balance{gap:2px!important}
+  .wallet-balance>strong{font-size:29px!important}
+  .wallet-month-line{padding:4px 0 1px!important;gap:7px!important}
+  .compact-next{padding:7px 10px!important}
+
+  /* Summary headers on Tagihan / Pinjaman / Statistik */
+  .compact-page-summary{
+    min-height:142px!important;
+    padding-top:2px!important;
+    padding-bottom:22px!important;
+    gap:10px!important;
+  }
+  .loans-summary-blue.compact-page-summary{min-height:150px!important}
+  .blue-inline-action{padding:8px 11px!important;border-radius:12px!important;font-size:11px!important}
+  .page-white-surface,.fintech-surface{margin-top:-21px!important}
+
+  .mini-history-row{padding:9px 10px!important}
+  .mini-history-row>span{font-size:9px!important}
+  .mini-history-row b{font-size:10.5px!important}
+}
+
+/* Dark mode: softer blue-gray surfaces, not black-on-black */
+html[data-theme="dark"]{
+  --bg:#10252D;
+  --bg-elev:#132C35;
+  --card:#18343E;
+  --text:#F3F8FA;
+  --muted:#A8BBC2;
+  --line:#2B4A55;
+  --line-2:#233F49;
+  --brand:#18A6C7;
+  --brand-2:#50C5DC;
+  --brand-3:#BDECF5;
+  --brand-soft:#173F4B;
+  --brand-soft-2:#1D4D59;
+  --shadow:0 16px 38px rgba(0,0,0,.24);
+  --shadow-soft:0 8px 22px rgba(0,0,0,.16);
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .view-container{
+  background:linear-gradient(180deg,#0F3542 0,#102832 230px,#10252D 430px,#10252D 100%)!important;
+  color:var(--text)!important;
+}
+html[data-theme="dark"] .topbar{
+  background:linear-gradient(110deg,#075F80 0%,#087EA4 58%,#0A98B6 100%)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+}
+html[data-theme="dark"] .wallet-hero,
+html[data-theme="dark"] .page-blue-summary{
+  background:
+    linear-gradient(115deg,rgba(255,255,255,.035) 1px,transparent 1px) 0 0/34px 34px,
+    radial-gradient(circle at 88% 18%,rgba(57,194,221,.24),transparent 30%),
+    linear-gradient(130deg,#075E80 0%,#087A9D 50%,#0A91AD 100%)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+}
+html[data-theme="dark"] .fintech-surface,
+html[data-theme="dark"] .page-white-surface,
+html[data-theme="dark"] .sidebar{
+  background:#112831!important;
+  border-color:var(--line)!important;
+}
+html[data-theme="dark"] .finance-shortcuts,
+html[data-theme="dark"] .transaction-panel,
+html[data-theme="dark"] .provider-fintech-card,
+html[data-theme="dark"] .finance-loan-list,
+html[data-theme="dark"] .projection-card,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .settings-card,
+html[data-theme="dark"] .modal-card,
+html[data-theme="dark"] .filter-chips label,
+html[data-theme="dark"] .mini-history-row,
+html[data-theme="dark"] .reminder-toggle,
+html[data-theme="dark"] .vario-strip{
+  background:#18343E!important;
+  border-color:#2B4A55!important;
+  color:var(--text)!important;
+}
+html[data-theme="dark"] .finance-shortcuts button{
+  color:#EAF4F7!important;
+}
+html[data-theme="dark"] .finance-shortcuts button:hover{
+  background:#1D414D!important;
+  color:#fff!important;
+}
+html[data-theme="dark"] .finance-shortcuts b,
+html[data-theme="dark"] .vario-strip strong,
+html[data-theme="dark"] .txn-copy strong,
+html[data-theme="dark"] .txn-value>strong,
+html[data-theme="dark"] .loan-row-copy strong,
+html[data-theme="dark"] .loan-row-value strong,
+html[data-theme="dark"] .section-head h2{
+  color:#F4FAFC!important;
+}
+html[data-theme="dark"] .finance-shortcuts small,
+html[data-theme="dark"] .vario-strip small,
+html[data-theme="dark"] .txn-copy>span,
+html[data-theme="dark"] .loan-row-copy span,
+html[data-theme="dark"] .loan-row-copy small,
+html[data-theme="dark"] .section-head p{
+  color:#9FB4BC!important;
+}
+html[data-theme="dark"] .shortcut-icon,
+html[data-theme="dark"] .vario-icon,
+html[data-theme="dark"] .txn-date,
+html[data-theme="dark"] .device-icon,
+html[data-theme="dark"] .settings-icon{
+  background:#DDF4F8!important;
+  color:#087C9E!important;
+  border-color:#BDE5ED!important;
+}
+html[data-theme="dark"] .txn-row,
+html[data-theme="dark"] .finance-loan-row,
+html[data-theme="dark"] .history-row{
+  border-color:#24414B!important;
+}
+html[data-theme="dark"] .txn-row:hover,
+html[data-theme="dark"] .finance-loan-row:hover{
+  background:#1C3B45!important;
+}
+html[data-theme="dark"] .filter-chips select,
+html[data-theme="dark"] .field input,
+html[data-theme="dark"] .field select,
+html[data-theme="dark"] .field-inline{
+  color:#F1F7F9!important;
+}
+html[data-theme="dark"] .field input,
+html[data-theme="dark"] .field select,
+html[data-theme="dark"] .field-inline,
+html[data-theme="dark"] .detail-kpis>div,
+html[data-theme="dark"] .account-meta>div,
+html[data-theme="dark"] .detail-amount{
+  background:#122B34!important;
+  border-color:#2A4853!important;
+}
+html[data-theme="dark"] .notice{
+  background:#17333D!important;
+  color:#B8C9CF!important;
+  border-color:#2B4A55!important;
+}
+html[data-theme="dark"] .notice strong{color:#F0F7F9!important}
+html[data-theme="dark"] .status.upcoming{
+  background:#243D46!important;
+  color:#D5E1E5!important;
+  border-color:#385560!important;
+}
+html[data-theme="dark"] .status.paid{
+  background:#173D35!important;
+  color:#9FE1C4!important;
+  border-color:#2C5A4E!important;
+}
+html[data-theme="dark"] .status.soon{
+  background:#46371E!important;
+  color:#FFD99B!important;
+  border-color:#66502B!important;
+}
+html[data-theme="dark"] .status.overdue{
+  background:#472724!important;
+  color:#FFB2A9!important;
+  border-color:#6A3A35!important;
+}
+html[data-theme="dark"] .group-ring::after{background:#18343E!important}
+html[data-theme="dark"] .group-ring{background:conic-gradient(#38BCD5 calc(var(--p)*1%),#294650 0)!important}
+html[data-theme="dark"] .detail-progress,
+html[data-theme="dark"] .loan-row-progress,
+html[data-theme="dark"] .provider-row .bar,
+html[data-theme="dark"] .chart-track{
+  background:#294650!important;
+}
+html[data-theme="dark"] .bottom-nav{
+  background:rgba(15,35,43,.98)!important;
+  border-color:#294650!important;
+  box-shadow:0 -8px 24px rgba(0,0,0,.16)!important;
+}
+html[data-theme="dark"] .bottom-nav button{color:#A9BAC0!important}
+html[data-theme="dark"] .bottom-nav button.active{color:#35B8D2!important}
+html[data-theme="dark"] .chev,
+html[data-theme="dark"] .txn-chevron{color:#7E9AA4!important}
+html[data-theme="dark"] .modal::backdrop{background:rgba(3,15,20,.58)!important}
+
+@media(max-width:760px){
+  html[data-theme="dark"] body,
+  html[data-theme="dark"] .view-container{
+    background:linear-gradient(180deg,#08789B 0,#0B6882 170px,#10252D 300px,#10252D 100%)!important;
+  }
+}
