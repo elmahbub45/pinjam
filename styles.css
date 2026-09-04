@@ -969,7 +969,7 @@ html:not([data-theme="dark"]) .page-white-surface{
   .compact-page-summary{
     min-height:142px!important;
     padding-top:2px!important;
-    padding-bottom:40px!important;
+    padding-bottom:55px!important;
     gap:12px!important;
   }
   .loans-summary-blue.compact-page-summary{min-height:150px!important}
