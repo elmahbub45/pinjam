@@ -16,7 +16,9 @@ const state = {
   user:null,
   data:null,
   view:'home',
-  filter:{month:'',provider:'ALL',status:'ALL'},
+  filter:{month:'',provider:'ALL',status:'ALL',search:''},
+  calendarMonth:monthKey(todayISO()),
+  calendarSelected:todayISO(),
   online:navigator.onLine,
   lastSyncAt:null,
   themePreference:['system','light','dark'].includes(savedThemePreference)?savedThemePreference:'system',
@@ -126,7 +128,7 @@ window.addEventListener('offline',()=>{state.online=false;setSync(false,'Offline
 function bindNav(){
   qsa('[data-view]').forEach(b=>b.onclick=()=>navigate(b.dataset.view));
 }
-function navigate(view){ state.view=view; qsa('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view)); const titles={home:'Beranda',bills:'Tagihan',loans:'Pinjaman',stats:'Statistik',reminders:'Reminder',settings:'Pengaturan'}; qs('#viewTitle').textContent=titles[view]||'Pinjam'; render(); }
+function navigate(view){ state.view=view; qsa('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view)); const titles={home:'Beranda',bills:'Tagihan',calendar:'Kalender',loans:'Pinjaman',stats:'Statistik',reminders:'Reminder',settings:'Pengaturan'}; qs('#viewTitle').textContent=titles[view]||'Pinjam'; render(); }
 
 async function refresh(manual=false){
   if(!state.online){ const c=loadCache(); if(c){state.data=c.data;setSync(false,'Offline · cache');render();} return; }
@@ -139,7 +141,7 @@ async function refresh(manual=false){
 function render(){
   const el=qs('#viewContainer');
   if(!state.data){el.innerHTML='<div class="panel empty">Memuat data…</div>';return;}
-  const map={home:renderHome,bills:renderBills,loans:renderLoans,stats:renderStats,reminders:renderReminders,settings:renderSettings}; el.innerHTML=(map[state.view]||renderHome)(); attachViewEvents();
+  const map={home:renderHome,bills:renderBills,calendar:renderCalendar,loans:renderLoans,stats:renderStats,reminders:renderReminders,settings:renderSettings}; el.innerHTML=(map[state.view]||renderHome)(); attachViewEvents();
 }
 
 function renderHome(){
@@ -228,11 +230,13 @@ function renderBills(){
   const items=state.data.items||[]; const months=[...new Set(items.map(x=>monthKey(x.dueDate)))].sort(); if(!state.filter.month) state.filter.month=monthKey(todayISO());
   const providers=[...new Set(items.map(x=>x.provider))].sort();
   const filtered=items.filter(x=>{
+    const q=String(state.filter.search||'').trim().toLowerCase();
+    const searchMatch=!q||`${x.provider||''} ${x.name||''}`.toLowerCase().includes(q);
     const statusMatch=state.filter.status==='ALL'||
       (state.filter.status==='PAID'&&x.status==='Lunas')||
       (state.filter.status==='PARTIAL'&&x.paymentStatus==='Sebagian')||
       (state.filter.status==='UNPAID'&&x.status!=='Lunas');
-    return (state.filter.month==='ALL'||monthKey(x.dueDate)===state.filter.month)&&(state.filter.provider==='ALL'||x.provider===state.filter.provider)&&statusMatch;
+    return searchMatch&&(state.filter.month==='ALL'||monthKey(x.dueDate)===state.filter.month)&&(state.filter.provider==='ALL'||x.provider===state.filter.provider)&&statusMatch;
   }).sort(smartBillSort);
   const total=filtered.reduce((n,x)=>n+Number(x.amount||0),0), paid=filtered.filter(x=>x.status==='Lunas').length, partial=filtered.filter(x=>x.paymentStatus==='Sebagian').length, unpaid=filtered.length-paid;
   return `<div class="fintech-page bills-page-v15">
@@ -246,6 +250,7 @@ function renderBills(){
         <label><span>Bulan</span><select id="monthFilter"><option value="ALL">Semua</option>${months.map(m=>`<option value="${m}" ${m===state.filter.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></label>
         <label><span>Sumber</span><select id="providerFilter"><option value="ALL">Semua</option>${providers.map(p=>`<option ${p===state.filter.provider?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
         <label><span>Status</span><select id="statusFilter"><option value="ALL">Semua</option><option value="UNPAID" ${state.filter.status==='UNPAID'?'selected':''}>Belum lunas</option><option value="PARTIAL" ${state.filter.status==='PARTIAL'?'selected':''}>Sebagian</option><option value="PAID" ${state.filter.status==='PAID'?'selected':''}>Lunas</option></select></label>
+        <label class="desktop-bill-search"><span>Cari</span><input id="billSearch" type="search" placeholder="Layanan / tagihan" value="${esc(state.filter.search||'')}"></label>
       </div>
       ${desktopBillTable(filtered)}
       <div class="transaction-panel bills-transactions compact-transactions mobile-bill-list">${filtered.length?filtered.map(fintechBillRow).join(''):emptyState('Tidak ada tagihan 🎉','Tidak ada tagihan yang cocok dengan filter ini.')}</div>
@@ -254,6 +259,88 @@ function renderBills(){
 }
 
 function monthLabel(m){const [y,mo]=m.split('-');return new Intl.DateTimeFormat('id-ID',{month:'long',year:'numeric'}).format(new Date(+y,+mo-1,1));}
+
+
+function shiftMonthKey(key,delta){
+  const [y,m]=String(key||monthKey(todayISO())).split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function isoYMD(y,m,d){ return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function calendarTone(x){
+  if(x.status==='Lunas')return 'paid';
+  if(x.paymentStatus==='Sebagian')return 'partial';
+  if(x.overdue)return 'overdue';
+  return 'unpaid';
+}
+function calendarProviderShort(x){
+  const p=String(x.provider||'Tagihan');
+  if(/shopee/i.test(p))return 'Shopee';
+  if(/gopaypinjam/i.test(p))return 'GoPay Pinjam';
+  if(/gopaylater/i.test(p))return 'GoPayLater';
+  if(/spinjam/i.test(p))return 'SPinjam';
+  if(/tiktok/i.test(p))return 'TikTok';
+  return p;
+}
+function calendarAgendaRow(x){
+  const [label,cls]=statusInfo(x), original=itemOriginal(x), paid=itemPaid(x), remaining=itemRemaining(x);
+  const secondary=x.paymentStatus==='Sebagian'?`Awal ${money(original)} · dibayar ${money(paid)}`:esc(x.name);
+  return `<button type="button" class="calendar-agenda-row ${x.paymentStatus==='Sebagian'?'is-partial':''}" data-item="${esc(x.id)}"><span class="calendar-agenda-icon ${calendarTone(x)}">${esc((x.provider||'T').charAt(0).toUpperCase())}</span><span class="calendar-agenda-copy"><strong>${esc(x.provider)}</strong><small>${secondary}</small></span><span class="calendar-agenda-value"><strong>${x.status==='Lunas'?money(original):money(remaining)}</strong><small class="status ${cls}">${label}</small></span><span class="txn-chevron">›</span></button>`;
+}
+function renderCalendar(){
+  const items=state.data?.items||[];
+  const currentMonth=state.calendarMonth||monthKey(todayISO());
+  if(!/^\d{4}-\d{2}$/.test(currentMonth))state.calendarMonth=monthKey(todayISO());
+  const month=state.calendarMonth;
+  if(!state.calendarSelected||monthKey(state.calendarSelected)!==month){
+    const firstDue=items.filter(x=>monthKey(x.dueDate)===month).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)))[0];
+    state.calendarSelected=month===monthKey(todayISO())?todayISO():(firstDue?.dueDate||`${month}-01`);
+  }
+  const selected=state.calendarSelected;
+  const monthItems=items.filter(x=>monthKey(x.dueDate)===month).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate))||smartBillSort(a,b));
+  const selectedItems=items.filter(x=>x.dueDate===selected).sort(smartBillSort);
+  const total=monthItems.reduce((n,x)=>n+itemOriginal(x),0);
+  const paid=monthItems.reduce((n,x)=>n+itemPaid(x),0);
+  const remaining=monthItems.reduce((n,x)=>n+itemRemaining(x),0);
+  const [year,mon]=month.split('-').map(Number);
+  const firstDow=(new Date(`${month}-01T00:00:00+08:00`).getDay()+6)%7; // Senin=0
+  const daysInMonth=new Date(year,mon,0).getDate();
+  const prevKey=shiftMonthKey(month,-1), [py,pm]=prevKey.split('-').map(Number), prevDays=new Date(py,pm,0).getDate();
+  const nextKey=shiftMonthKey(month,1), [ny,nm]=nextKey.split('-').map(Number);
+  const byDate=new Map();
+  items.forEach(x=>{ if(!x.dueDate)return; const arr=byDate.get(x.dueDate)||[]; arr.push(x); byDate.set(x.dueDate,arr); });
+  const cells=[];
+  for(let i=0;i<42;i++){
+    let y=year,m=mon,d=i-firstDow+1,inMonth=true;
+    if(d<1){y=py;m=pm;d=prevDays+d;inMonth=false;}
+    else if(d>daysInMonth){y=ny;m=nm;d=d-daysInMonth;inMonth=false;}
+    const iso=isoYMD(y,m,d), dayItems=(byDate.get(iso)||[]).sort(smartBillSort), isToday=iso===todayISO(), isSelected=iso===selected;
+    const tones=[...new Set(dayItems.map(calendarTone))];
+    const eventHtml=dayItems.slice(0,3).map(x=>`<button type="button" class="calendar-mini-event ${calendarTone(x)}" data-calendar-item="${esc(x.id)}" title="${esc(x.provider)} · ${money(x.status==='Lunas'?itemOriginal(x):itemRemaining(x))}"><span>${esc(calendarProviderShort(x))}</span><b>${x.status==='Lunas'?'Lunas':money(itemRemaining(x)).replace(/Rp\s?/,'')}</b></button>`).join('');
+    const more=dayItems.length>3?`<span class="calendar-more">+${dayItems.length-3} lagi</span>`:'';
+    const dots=tones.map(t=>`<i class="calendar-dot ${t}"></i>`).join('');
+    cells.push(`<div class="calendar-day ${inMonth?'':'outside'} ${isToday?'today':''} ${isSelected?'selected':''} ${dayItems.length?'has-items':''}" data-calendar-date="${iso}"><div class="calendar-day-top"><b>${d}</b>${dayItems.length?`<small>${dayItems.length}</small>`:''}</div><div class="calendar-event-stack">${eventHtml}${more}</div><div class="calendar-mobile-dots">${dots}</div></div>`);
+  }
+  const selectedLabel=dateFmt(selected,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  return `<div class="fintech-page calendar-page">
+    <section class="page-blue-summary calendar-summary compact-page-summary">
+      <p class="eyebrow">Kalender tagihan</p>
+      <div class="calendar-summary-main"><div><span>Bulan aktif</span><strong>${monthLabel(month)}</strong><small>${monthItems.length} tagihan terjadwal</small></div><div class="calendar-summary-orb"><b>${monthItems.filter(x=>x.status!=='Lunas').length}</b><span>tersisa</span></div></div>
+      <div class="calendar-month-kpis"><div><span>Total</span><b>${money(total)}</b></div><div><span>Sudah dibayar</span><b>${money(paid)}</b></div><div><span>Sisa</span><b>${money(remaining)}</b></div><div><span>Tagihan</span><b>${monthItems.length}</b></div></div>
+    </section>
+    <section class="page-white-surface calendar-surface">
+      <div class="calendar-toolbar"><div><h2>${monthLabel(month)}</h2><p>Ketuk tanggal untuk melihat rincian.</p></div><div class="calendar-nav-actions"><button type="button" id="calendarPrev" class="calendar-nav-btn" aria-label="Bulan sebelumnya">‹</button><button type="button" id="calendarToday" class="calendar-today-btn">Hari ini</button><button type="button" id="calendarNext" class="calendar-nav-btn" aria-label="Bulan berikutnya">›</button></div></div>
+      <div class="calendar-layout">
+        <div class="calendar-board">
+          <div class="calendar-weekdays">${['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map(x=>`<span>${x}</span>`).join('')}</div>
+          <div class="calendar-grid">${cells.join('')}</div>
+          <div class="calendar-legend"><span><i class="calendar-dot unpaid"></i>Belum lunas</span><span><i class="calendar-dot partial"></i>Sebagian</span><span><i class="calendar-dot overdue"></i>Terlambat</span><span><i class="calendar-dot paid"></i>Lunas</span></div>
+        </div>
+        <aside class="calendar-agenda"><div class="calendar-agenda-head"><span>Rincian tanggal</span><strong>${selectedLabel}</strong><small>${selectedItems.length?`${selectedItems.length} tagihan`:'Tidak ada tagihan'}</small></div><div class="calendar-agenda-list">${selectedItems.length?selectedItems.map(calendarAgendaRow).join(''):emptyState('Tidak ada tagihan','Tanggal ini tidak memiliki jadwal pembayaran.')}</div></aside>
+      </div>
+    </section>
+  </div>`;
+}
 
 function renderLoans(){
   const groups=state.data.groups||[], all=state.data.items||[];
@@ -318,6 +405,12 @@ function attachViewEvents(){
   qs('#monthFilter')?.addEventListener('change',e=>{state.filter.month=e.target.value;render()});
   qs('#providerFilter')?.addEventListener('change',e=>{state.filter.provider=e.target.value;render()});
   qs('#statusFilter')?.addEventListener('change',e=>{state.filter.status=e.target.value;render()});
+  qs('#billSearch')?.addEventListener('input',e=>{state.filter.search=e.target.value;clearTimeout(e.target._searchTimer);e.target._searchTimer=setTimeout(()=>render(),220);});
+  qs('#calendarPrev')?.addEventListener('click',()=>{state.calendarMonth=shiftMonthKey(state.calendarMonth,-1);state.calendarSelected=`${state.calendarMonth}-01`;render();});
+  qs('#calendarNext')?.addEventListener('click',()=>{state.calendarMonth=shiftMonthKey(state.calendarMonth,1);state.calendarSelected=`${state.calendarMonth}-01`;render();});
+  qs('#calendarToday')?.addEventListener('click',()=>{state.calendarMonth=monthKey(todayISO());state.calendarSelected=todayISO();render();});
+  qsa('[data-calendar-date]').forEach(cell=>cell.addEventListener('click',()=>{const d=cell.dataset.calendarDate;if(monthKey(d)!==state.calendarMonth)state.calendarMonth=monthKey(d);state.calendarSelected=d;render();}));
+  qsa('[data-calendar-item]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();openItem(btn.dataset.calendarItem);}));
   qs('#addLoanBtn')?.addEventListener('click',openAddLoan); qs('#homeAddBtn')?.addEventListener('click',openAddLoan); qs('#varioPaymentBtn')?.addEventListener('click',openVarioPayment);
   qs('#quickPaidBtn')?.addEventListener('click',()=>{const x=(state.data.items||[]).filter(x=>x.status!=='Lunas'&&itemRemaining(x)>0).sort(smartBillSort)[0]; if(x)openItem(x.id)});
   qs('#quickSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater'));

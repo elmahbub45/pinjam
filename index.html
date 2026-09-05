@@ -22,7 +22,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=1.8.0" />
+  <link rel="stylesheet" href="styles.css?v=1.9.0" />
   <script src="config.js"></script>
 </head>
 <body>
@@ -48,6 +48,7 @@
       <nav id="sideNav" class="side-nav">
         <button data-view="home" class="active">⌂ <span>Beranda</span></button>
         <button data-view="bills">▤ <span>Tagihan</span></button>
+        <button data-view="calendar">▦ <span>Kalender</span></button>
         <button data-view="loans">◫ <span>Pinjaman</span></button>
         <button data-view="stats">⌁ <span>Statistik</span></button>
         <button data-view="reminders">◉ <span>Reminder</span></button>
@@ -75,6 +76,7 @@
     <nav id="bottomNav" class="bottom-nav">
       <button data-view="home" class="active"><span>⌂</span><small>Beranda</small></button>
       <button data-view="bills"><span>▤</span><small>Tagihan</small></button>
+      <button data-view="calendar"><span class="nav-calendar"><svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5"></rect><path d="M7 3.5v4M17 3.5v4M3.5 9.5h17"></path><path d="M8 13h2M14 13h2M8 17h2M14 17h2"></path></svg></span><small>Kalender</small></button>
       <button data-view="stats"><span>⌁</span><small>Statistik</small></button>
       <button data-view="settings"><span>⚙</span><small>Lainnya</small></button>
     </nav>
@@ -87,6 +89,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=1.8.0"></script>
+  <script type="module" src="app.js?v=1.9.0"></script>
 </body>
 </html>
