@@ -956,9 +956,9 @@ html:not([data-theme="dark"]) .page-white-surface{
   /* Home blue balance area also becomes slightly shorter */
   .compact-wallet-hero{
     min-height:226px!important;
-    padding-top:0!important;
-    padding-bottom:42px!important;
-    gap:14px!important;
+    padding-top:20px!important;
+    padding-bottom:52px!important;
+    gap:24px!important;
   }
   .wallet-balance{gap:2px!important}
   .wallet-balance>strong{font-size:29px!important}
@@ -1169,7 +1169,7 @@ html[data-theme="dark"] .modal::backdrop{background:rgba(3,15,20,.58)!important}
   .topbar h1{
     margin:0!important;
     font-size:19px!important;
-    line-height:1!important;
+    line-height:26px!important;
   }
   .top-actions{gap:5px!important}
   .icon-btn,.avatar{
@@ -1181,13 +1181,13 @@ html[data-theme="dark"] .modal::backdrop{background:rgba(3,15,20,.58)!important}
   /* Jarak yang sengaja ditambahkan agar Total Sisa Tagihan
      tidak menempel pada batas bawah topbar. */
   .compact-wallet-hero{
-    padding-top:12px!important;
+    padding-top:20px!important;
   }
 
   /* Halaman selain Beranda juga mendapat jarak yang seimbang
      setelah topbar yang baru lebih pendek. */
   .compact-page-summary{
-    padding-top:10px!important;
+    padding-top:20px!important;
   }
 }
 
