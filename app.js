@@ -11,10 +11,30 @@ const dateFmt = (s, opt={day:'numeric',month:'short',year:'numeric'}) => s ? new
 const esc = s => String(s??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
 const monthKey = s => String(s||'').slice(0,7);
 
-const state = { user:null, data:null, view:'home', filter:{month:'',provider:'ALL',status:'ALL'}, online:navigator.onLine, lastSyncAt:null, theme:localStorage.getItem('pinjam.theme')||'light' };
+const savedThemePreference = localStorage.getItem('pinjam.theme') || 'system';
+const state = {
+  user:null,
+  data:null,
+  view:'home',
+  filter:{month:'',provider:'ALL',status:'ALL'},
+  online:navigator.onLine,
+  lastSyncAt:null,
+  themePreference:['system','light','dark'].includes(savedThemePreference)?savedThemePreference:'system',
+  theme:'light'
+};
 let firebaseApp, auth, messaging, api;
 
-function toast(msg){ const t=qs('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._timer); t._timer=setTimeout(()=>t.classList.remove('show'),2800); }
+function toast(msg, actionLabel='', actionFn=null){
+  const t=qs('#toast'); if(!t)return;
+  t.innerHTML='';
+  const text=document.createElement('span'); text.textContent=msg; t.appendChild(text);
+  if(actionLabel&&typeof actionFn==='function'){
+    const btn=document.createElement('button'); btn.type='button'; btn.className='toast-action'; btn.textContent=actionLabel;
+    btn.onclick=async()=>{ btn.disabled=true; try{ await actionFn(); }catch(e){ toast(e.message||String(e)); } };
+    t.appendChild(btn);
+  }
+  t.classList.add('show'); clearTimeout(t._timer); t._timer=setTimeout(()=>t.classList.remove('show'),actionLabel?6500:2800);
+}
 function setSync(ok,text){
   const dot=qs('#syncDot'), sync=qs('#syncText'), badge=qs('#connectionBadge');
   if(dot) dot.className='dot '+(ok?'ok':'bad'); if(sync) sync.textContent=text;
@@ -34,10 +54,18 @@ function itemPaid(x){ return x?.status==='Lunas' ? itemOriginal(x) : Number(x?.p
 function itemRemaining(x){ return x?.status==='Lunas' ? 0 : Number(x?.remainingAmount ?? x?.amount ?? 0); }
 function itemSupportsPartial(x){ return !!x?.partialPaymentAllowed; }
 function todayISO(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Makassar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
-function applyTheme(theme=state.theme){
-  state.theme=theme==='dark'?'dark':'light';
+function resolvedTheme(preference=state.themePreference){
+  if(preference==='system') return window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light';
+  return preference==='dark'?'dark':'light';
+}
+function applyTheme(preference=state.themePreference,{persist=true}={}){
+  state.themePreference=['system','light','dark'].includes(preference)?preference:'system';
+  state.theme=resolvedTheme(state.themePreference);
   document.documentElement.dataset.theme=state.theme;
-  localStorage.setItem('pinjam.theme',state.theme);
+  document.documentElement.dataset.themePreference=state.themePreference;
+  if(persist)localStorage.setItem('pinjam.theme',state.themePreference);
+  const meta=qs('meta[name="theme-color"]');
+  if(meta)meta.setAttribute('content',state.theme==='dark'?'#0F1E24':'#087EA4');
 }
 function formatSyncTime(){ return state.lastSyncAt ? new Intl.DateTimeFormat('id-ID',{hour:'2-digit',minute:'2-digit'}).format(state.lastSyncAt) : '-'; }
 function emptyState(title='Belum ada data',desc='Tidak ada item yang perlu ditampilkan.',action=''){
@@ -49,11 +77,24 @@ function renderSkeleton(){
 }
 function paylaterHistoryFor(source){ return (state.data?.paylaterHistory||[]).filter(h=>h.sourceSheet===source); }
 function amountChangeText(h){ const oldN=Number(h.oldValue||0), newN=Number(h.newValue||0), diff=newN-oldN; return `${diff>=0?'+':'−'}${money(Math.abs(diff))}`; }
-function themeIcon(){ return state.theme==='dark'?'☀':'☾'; }
+function themeIcon(){ return state.themePreference==='system'?'◐':(state.theme==='dark'?'☀':'☾'); }
+function themePreferenceLabel(){ return state.themePreference==='system'?'Ikuti perangkat':(state.theme==='dark'?'Gelap':'Terang'); }
+function paymentPriority(x){
+  if(x?.status==='Lunas')return 9;
+  if(x?.overdue)return 0;
+  if(x?.paymentStatus==='Sebagian')return 1;
+  if(Number(x?.daysUntil)<=7)return 2;
+  return 3;
+}
+function smartBillSort(a,b){
+  return paymentPriority(a)-paymentPriority(b) || String(a.dueDate).localeCompare(String(b.dueDate)) || String(a.provider).localeCompare(String(b.provider));
+}
 
 
 async function boot(){
-  applyTheme(state.theme);
+  applyTheme(state.themePreference,{persist:false});
+  const media=window.matchMedia?.('(prefers-color-scheme: dark)');
+  media?.addEventListener?.('change',()=>{ if(state.themePreference==='system'){ applyTheme('system',{persist:false}); if(state.data)render(); } });
   qs('#dateLabel').textContent = new Intl.DateTimeFormat('id-ID',{timeZone:'Asia/Makassar',weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
   if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.warn);
   if(!cfg.FIREBASE?.apiKey){ showSetupScreen('Firebase belum dikonfigurasi di config.js.'); return; }
@@ -103,7 +144,7 @@ function render(){
 
 function renderHome(){
   const d=state.data, a=d.analytics;
-  const pending=(d.items||[]).filter(x=>x.status!=='Lunas').sort((x,y)=>x.dueDate.localeCompare(y.dueDate));
+  const pending=(d.items||[]).filter(x=>x.status!=='Lunas'&&itemRemaining(x)>0).sort(smartBillSort);
   const next=pending.slice(0,5), nearest=pending[0];
   const monthPct=a.monthTotal?Math.min(100,Math.round((a.monthPaid/a.monthTotal)*100)):0;
   return `
@@ -119,11 +160,11 @@ function renderHome(){
         <small>${a.unpaidCount} belum lunas · ${a.providersCount} layanan</small>
       </div>
       <div class="wallet-month-line">
-        <div><span>Bulan ini</span><strong>${money(a.monthTotal)}</strong></div>
-        <div><span>Sudah dibayar</span><strong>${money(a.monthPaid)}</strong></div>
-        <div class="wallet-progress"><span>${monthPct}%</span><i><b style="width:${monthPct}%"></b></i></div>
+        <div><span>Tagihan bulan ini</span><strong>${money(a.monthTotal)}</strong></div>
+        <div><span>Sisa bulan ini</span><strong>${money(a.monthUnpaid)}</strong></div>
+        <div class="wallet-progress"><span>${monthPct}%</span><i><b style="width:${monthPct}%"></b></i><small>Terbayar ${money(a.monthPaid)}</small></div>
       </div>
-      ${nearest?`<div class="wallet-next compact-next"><div><span>Tagihan berikutnya</span><strong>${esc(nearest.provider)}</strong></div><div><span>${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})}</span><strong>${money(nearest.amount)}</strong></div></div>`:''}
+      ${nearest?`<div class="wallet-next compact-next"><div><span>Tagihan berikutnya</span><strong>${esc(nearest.provider)}</strong></div><div><span>${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})}</span><strong>${money(itemRemaining(nearest))}</strong></div></div>`:''}
     </section>
 
     <section class="fintech-surface daily-surface">
@@ -153,7 +194,9 @@ function renderHome(){
 function fintechBillRow(x){
   const [label,cls]=statusInfo(x), dt=new Date(`${x.dueDate}T00:00:00+08:00`);
   const dueText=x.daysUntil===0?'Hari ini':x.daysUntil<0?`${Math.abs(x.daysUntil)} hari lewat`:dateFmt(x.dueDate,{day:'numeric',month:'short'});
-  return `<div class="txn-row" data-item="${esc(x.id)}"><div class="txn-date"><b>${dt.getDate()}</b><span>${new Intl.DateTimeFormat('id-ID',{month:'short'}).format(dt).toUpperCase()}</span></div><div class="txn-copy"><strong>${esc(x.provider)}</strong><span>${esc(x.name)} · ${dueText}${x.paymentStatus==='Sebagian'?` · awal ${money(itemOriginal(x))}`:''}</span></div><div class="txn-value"><strong>${money(x.amount)}</strong><span class="status ${cls}">${label}</span></div><span class="txn-chevron">›</span></div>`;
+  const partialText=x.paymentStatus==='Sebagian'?` · dibayar ${money(itemPaid(x))} dari ${money(itemOriginal(x))}`:'';
+  const amountPrefix=x.paymentStatus==='Sebagian'?'Sisa ':'';
+  return `<div class="txn-row ${x.paymentStatus==='Sebagian'?'txn-partial':''}" data-item="${esc(x.id)}"><div class="txn-date"><b>${dt.getDate()}</b><span>${new Intl.DateTimeFormat('id-ID',{month:'short'}).format(dt).toUpperCase()}</span></div><div class="txn-copy"><strong>${esc(x.provider)}</strong><span>${esc(x.name)} · ${dueText}${partialText}</span></div><div class="txn-value"><strong>${amountPrefix}${money(itemRemaining(x)||x.amount)}</strong><span class="status ${cls}">${label}</span></div><span class="txn-chevron">›</span></div>`;
 }
 
 function billRow(x){ const [label,cls]=statusInfo(x), dt=new Date(`${x.dueDate}T00:00:00+08:00`); return `<div class="bill-row" data-item="${esc(x.id)}"><div class="date-chip">${dt.getDate()}<small>${new Intl.DateTimeFormat('id-ID',{month:'short'}).format(dt).toUpperCase()}</small></div><div class="bill-main"><strong>${esc(x.provider)}</strong><span>${esc(x.name)}</span></div><div class="bill-money">${money(x.amount)}<small>${x.daysUntil===0?'Hari ini':x.daysUntil<0?`${Math.abs(x.daysUntil)} hari lewat`:dateFmt(x.dueDate,{day:'numeric',month:'short'})}</small></div><span class="status ${cls}">${label}</span></div>`; }
@@ -168,7 +211,7 @@ function renderBills(){
       (state.filter.status==='PARTIAL'&&x.paymentStatus==='Sebagian')||
       (state.filter.status==='UNPAID'&&x.status!=='Lunas');
     return (state.filter.month==='ALL'||monthKey(x.dueDate)===state.filter.month)&&(state.filter.provider==='ALL'||x.provider===state.filter.provider)&&statusMatch;
-  }).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  }).sort(smartBillSort);
   const total=filtered.reduce((n,x)=>n+Number(x.amount||0),0), paid=filtered.filter(x=>x.status==='Lunas').length, partial=filtered.filter(x=>x.paymentStatus==='Sebagian').length, unpaid=filtered.length-paid;
   return `<div class="fintech-page bills-page-v15">
     <section class="page-blue-summary compact-page-summary">
@@ -239,7 +282,8 @@ function renderSettings(){
     <div class="settings-card"><span class="settings-icon">◫</span><div><h3>Pinjaman</h3><p>Lihat semua pinjaman, progres cicilan, dan jadwal berikutnya.</p><small>${(state.data.groups||[]).length} kelompok pinjaman</small></div><button id="openLoansBtn" class="btn secondary">Buka</button></div>
     <div class="settings-card"><span class="settings-icon">↻</span><div><h3>Sinkronisasi</h3><p>Spreadsheet lama tetap menjadi sumber data utama.</p><small>Terakhir sinkron ${formatSyncTime()}</small></div><button id="syncNowBtn" class="btn secondary">Sinkronkan</button></div>
     <div class="settings-card"><span class="settings-icon">S</span><div><h3>SPayLater</h3><p>Perbarui nominal akumulasi tanpa kehilangan histori perubahan.</p><small>Mode dinamis</small></div><button id="updateSpayBtn" class="btn secondary">Perbarui</button></div>
-    <div class="settings-card"><span class="settings-icon">${themeIcon()}</span><div><h3>Tampilan</h3><p>Gunakan mode terang atau gelap sesuai kenyamanan.</p><small>${state.theme==='dark'?'Mode gelap aktif':'Mode terang aktif'}</small></div><button id="themeToggle" class="btn secondary">${state.theme==='dark'?'Gunakan terang':'Gunakan gelap'}</button></div>
+    <div class="settings-card theme-settings-card"><span class="settings-icon">${themeIcon()}</span><div><h3>Tampilan</h3><p>Pilih tema tetap atau ikuti pengaturan Android/perangkat.</p><small>${themePreferenceLabel()} · saat ini ${state.theme==='dark'?'gelap':'terang'}</small></div><select id="themeSelect" class="theme-select" aria-label="Tema tampilan"><option value="system" ${state.themePreference==='system'?'selected':''}>Ikuti perangkat</option><option value="light" ${state.themePreference==='light'?'selected':''}>Terang</option><option value="dark" ${state.themePreference==='dark'?'selected':''}>Gelap</option></select></div>
+    <div class="settings-card"><span class="settings-icon">✓</span><div><h3>Periksa Data</h3><p>Cari duplikat, pembayaran berlebih, histori yatim, atau baris bermasalah.</p><small>Health Check aman · tidak mengubah data</small></div><button id="healthCheckBtn" class="btn secondary">Periksa</button></div>
     <div class="settings-card"><span class="settings-icon">M</span><div><h3>Akun</h3><p>${esc(state.user?.email||'')}</p><small>${esc(state.user?.displayName||'Pengguna')}</small></div><button id="accountDetailBtn" class="btn secondary">Detail akun</button></div>
   </div>`;
 }
@@ -251,10 +295,11 @@ function attachViewEvents(){
   qs('#providerFilter')?.addEventListener('change',e=>{state.filter.provider=e.target.value;render()});
   qs('#statusFilter')?.addEventListener('change',e=>{state.filter.status=e.target.value;render()});
   qs('#addLoanBtn')?.addEventListener('click',openAddLoan); qs('#homeAddBtn')?.addEventListener('click',openAddLoan); qs('#varioPaymentBtn')?.addEventListener('click',openVarioPayment);
-  qs('#quickPaidBtn')?.addEventListener('click',()=>{const x=(state.data.items||[]).filter(x=>x.status!=='Lunas').sort((a,b)=>a.dueDate.localeCompare(b.dueDate))[0]; if(x)openItem(x.id)});
+  qs('#quickPaidBtn')?.addEventListener('click',()=>{const x=(state.data.items||[]).filter(x=>x.status!=='Lunas'&&itemRemaining(x)>0).sort(smartBillSort)[0]; if(x)openItem(x.id)});
   qs('#quickSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater'));
   qs('#syncNowBtn')?.addEventListener('click',()=>refresh(true)); qs('#updateSpayBtn')?.addEventListener('click',()=>openPaylaterUpdate('Shopee Paylater')); qs('#saveReminderBtn')?.addEventListener('click',saveReminderSettings);
-  qs('#themeToggle')?.addEventListener('click',()=>{applyTheme(state.theme==='dark'?'light':'dark');render();toast(state.theme==='dark'?'Mode gelap aktif.':'Mode terang aktif.');});
+  qs('#themeSelect')?.addEventListener('change',e=>{applyTheme(e.target.value);render();toast(`Tampilan: ${themePreferenceLabel()}.`);});
+  qs('#healthCheckBtn')?.addEventListener('click',openHealthCheck);
   qs('#accountDetailBtn')?.addEventListener('click',openAccount); qs('#openLoansBtn')?.addEventListener('click',()=>navigate('loans'));
   qsa('[data-group]').forEach(x=>x.onclick=()=>openGroup(x.dataset.group));
 }
@@ -266,7 +311,7 @@ function openItem(id){
   const pct=scheduled?Math.min(100,Math.round(paidAmount/scheduled*100)):0, paymentHistory=(x.paymentHistory||[]).slice(0,8);
   const amountLabel=x.status==='Lunas'?'Tagihan':(x.paymentStatus==='Sebagian'?'Sisa tagihan':'Tagihan');
   const paymentSummary=itemSupportsPartial(x)?`<div class="detail-kpis partial-kpis"><div><span>Tagihan awal</span><b>${money(original)}</b></div><div><span>Sudah dibayar</span><b>${money(paidThis)}</b></div><div><span>Sisa</span><b>${money(remaining)}</b></div></div>`:`<div class="detail-kpis"><div><span>Posisi</span><b>${x.kind==='fixed'?`${idx+1} / ${rows.length}`:'Dinamis'}</b></div><div><span>Sudah dibayar</span><b>${money(paidAmount)}</b></div><div><span>Total jadwal</span><b>${money(scheduled)}</b></div></div>`;
-  const historyHtml=paymentHistory.length?`<div class="history-block"><h3>Riwayat pembayaran tagihan ini</h3>${paymentHistory.map(h=>`<div class="history-row"><div><b>${esc(h.note||'Bayar sebagian')}</b><small>${h.date?dateFmt(h.date):esc(h.timestamp||'')}</small></div><span>${money(h.amount)}</span></div>`).join('')}</div>`:'';
+  const historyHtml=paymentHistory.length?`<div class="history-block"><h3>Riwayat pembayaran tagihan ini</h3>${paymentHistory.map(h=>`<div class="history-row payment-history-row ${h.active===false?'is-cancelled':''}"><div><b>${esc(h.note||'Bayar sebagian')}${h.edited?' <em>Diubah</em>':''}${h.active===false?' <em>Dibatalkan</em>':''}</b><small>${h.date?dateFmt(h.date):esc(h.timestamp||'')}</small></div><div class="history-payment-actions"><span>${money(h.active===false?(h.cancelledAmount||0):h.amount)}</span>${h.active!==false?`<button type="button" class="history-mini-btn" data-edit-payment="${esc(h.ref||'')}">Edit</button><button type="button" class="history-mini-btn danger" data-cancel-payment="${esc(h.ref||'')}">Batalkan</button>`:''}</div></div>`).join('')}</div>`:'';
   let actionHtml='';
   if(itemSupportsPartial(x)&&x.status!=='Lunas') actionHtml=`<button type="button" id="partialPayBtn" class="btn secondary">Bayar sebagian</button><button type="button" id="payoffBtn" class="btn primary">Lunasi</button>`;
   else if(x.status!=='Lunas') actionHtml=`<button type="button" id="markPaidBtn" class="btn primary">✓ Tandai Lunas</button>`;
@@ -278,6 +323,8 @@ function openItem(id){
   qs('#editDynamicBtn')?.addEventListener('click',()=>{closeModal();openPaylaterUpdate(x.sourceSheet)});
   qs('#partialPayBtn')?.addEventListener('click',()=>{closeModal();openPartialPayment(x,false)});
   qs('#payoffBtn')?.addEventListener('click',()=>{closeModal();openPartialPayment(x,true)});
+  qsa('[data-edit-payment]').forEach(b=>b.addEventListener('click',()=>openEditPartialPayment(x,b.dataset.editPayment)));
+  qsa('[data-cancel-payment]').forEach(b=>b.addEventListener('click',()=>cancelPartialPayment(x,b.dataset.cancelPayment)));
 }
 
 function openPartialPayment(x,payoff=false){
@@ -297,9 +344,33 @@ async function savePartialPayment(x,payoff=false){
     qs('#savePartialPayment').disabled=true;
     const r=await api.call('addPartialPayment',payload);
     closeModal();
-    toast(r.status==='Lunas'?`Tagihan lunas. Pembayaran ${money(amount)} disimpan.`:`Pembayaran disimpan. Sisa ${money(r.remaining)}.`);
     await refresh();
+    toast(
+      r.status==='Lunas'?`Tagihan lunas. Pembayaran ${money(amount)} disimpan.`:`Pembayaran disimpan. Sisa ${money(r.remaining)}.`,
+      'Batalkan',
+      async()=>{ await api.call('updatePartialPayment',{paymentRef:r.paymentRef,cancel:true}); await refresh(); toast('Pembayaran dibatalkan.'); }
+    );
   }catch(e){toast(e.message);qs('#savePartialPayment')&&(qs('#savePartialPayment').disabled=false);}
+}
+
+function findPayment(x,ref){ return (x?.paymentHistory||[]).find(h=>h.ref===ref); }
+function openEditPartialPayment(x,ref){
+  const h=findPayment(x,ref); if(!h||h.active===false)return toast('Pembayaran tidak ditemukan atau sudah dibatalkan.');
+  const current=Number(h.amount||0), maxAllowed=itemRemaining(x)+current;
+  openModal('Edit Pembayaran',x.provider,`<div class="partial-payment-card"><span>${esc(x.name)} · pembayaran tercatat</span><div><small>Nominal sekarang</small><b>${money(current)}</b></div><div><small>Maksimal</small><b>${money(maxAllowed)}</b></div><div class="remaining"><small>Sisa setelah edit</small><b id="editRemainingPreview">${money(Math.max(0,maxAllowed-current))}</b></div></div><div class="form-grid partial-payment-form"><div class="field"><label>Tanggal pembayaran</label><input id="editPartialDate" type="date" value="${esc(h.date||todayISO())}"></div><div class="field"><label>Jumlah pembayaran</label><input id="editPartialAmount" inputmode="numeric" value="${current}"></div><div class="field full"><label>Keterangan</label><input id="editPartialNote" value="${esc(h.note||'Bayar sebagian')}"></div></div><div class="notice partial-note" style="margin-top:12px">Perubahan dicatat sebagai koreksi di histori. Nominal tagihan asli tidak berubah.</div><div class="form-actions"><button type="button" id="saveEditPartial" class="btn primary">Simpan Koreksi</button></div>`);
+  const amountInput=qs('#editPartialAmount'), preview=qs('#editRemainingPreview');
+  amountInput?.addEventListener('input',()=>{const n=Number(String(amountInput.value).replace(/\D/g,'')); if(preview)preview.textContent=money(Math.max(0,maxAllowed-n));});
+  qs('#saveEditPartial').onclick=async()=>{
+    const amount=Number(String(amountInput?.value||'').replace(/\D/g,'')), date=qs('#editPartialDate')?.value, note=qs('#editPartialNote')?.value.trim()||'Bayar sebagian';
+    if(!date||amount<=0)return toast('Tanggal dan jumlah pembayaran harus diisi.');
+    if(amount>maxAllowed)return toast(`Pembayaran maksimal ${money(maxAllowed)}.`);
+    try{qs('#saveEditPartial').disabled=true; await api.call('updatePartialPayment',{paymentRef:ref,date,amount,note}); closeModal(); toast('Pembayaran berhasil dikoreksi.'); await refresh(); openItem(x.id);}catch(e){toast(e.message);qs('#saveEditPartial')&&(qs('#saveEditPartial').disabled=false);}
+  };
+}
+async function cancelPartialPayment(x,ref){
+  const h=findPayment(x,ref); if(!h||h.active===false)return toast('Pembayaran sudah dibatalkan.');
+  if(!confirm(`Batalkan pembayaran ${money(h.amount)}? Riwayat koreksi tetap disimpan.`))return;
+  try{await api.call('updatePartialPayment',{paymentRef:ref,cancel:true}); closeModal(); toast('Pembayaran dibatalkan.'); await refresh(); openItem(x.id);}catch(e){toast(e.message);}
 }
 
 async function changePaid(x,paid){ try{qs('#markPaidBtn')&&(qs('#markPaidBtn').disabled=true); await api.call('setStatus',{id:x.id,sourceSheet:x.sourceSheet,sourceRow:x.sourceRow,expectedName:x.name,expectedDueDate:x.dueDate,status:paid?'Lunas':'Belum Lunas'}); closeModal();toast(paid?'Tagihan ditandai lunas.':'Status dikembalikan belum lunas.');await refresh();}catch(e){toast(e.message);} }
@@ -356,7 +427,18 @@ async function saveReminderSettings(){
   try{await api.call('updateSettings',payload);toast('Pengaturan reminder disimpan.');await refresh();}catch(e){toast(e.message);}
 }
 function openAccount(){
-  openModal('Akun','Pinjam',`<div class="account-profile"><div class="account-avatar">${esc((state.user?.displayName||state.user?.email||'M').charAt(0).toUpperCase())}</div><div><strong>${esc(state.user?.displayName||'Pengguna')}</strong><span>${esc(state.user?.email||'')}</span></div></div><div class="account-meta"><div><span>Sinkron terakhir</span><b>${formatSyncTime()}</b></div><div><span>Notifikasi</span><b>${Notification.permission==='granted'?'Aktif':'Belum aktif'}</b></div><div><span>Tampilan</span><b>${state.theme==='dark'?'Gelap':'Terang'}</b></div></div><div class="form-actions"><button type="button" id="accountLogout" class="btn ghost">Keluar</button></div>`); qs('#accountLogout').onclick=()=>{closeModal();signOut(auth)};
+  openModal('Akun','Pinjam',`<div class="account-profile"><div class="account-avatar">${esc((state.user?.displayName||state.user?.email||'M').charAt(0).toUpperCase())}</div><div><strong>${esc(state.user?.displayName||'Pengguna')}</strong><span>${esc(state.user?.email||'')}</span></div></div><div class="account-meta"><div><span>Sinkron terakhir</span><b>${formatSyncTime()}</b></div><div><span>Notifikasi</span><b>${Notification.permission==='granted'?'Aktif':'Belum aktif'}</b></div><div><span>Tampilan</span><b>${themePreferenceLabel()}</b></div></div><div class="form-actions"><button type="button" id="accountLogout" class="btn ghost">Keluar</button></div>`); qs('#accountLogout').onclick=()=>{closeModal();signOut(auth)};
+}
+
+async function openHealthCheck(){
+  if(!state.online)return toast('Health Check memerlukan koneksi.');
+  openModal('Periksa Data','Health Check','<div class="health-loading">Memeriksa konsistensi data…</div>');
+  try{
+    const r=await api.call('dataHealthCheck',{});
+    const issues=r.issues||[], ok=!r.summary?.errors&&!r.summary?.warnings;
+    const rows=issues.length?issues.map(i=>`<div class="health-issue ${esc(i.severity||'warning')}"><span>${i.severity==='error'?'!':'•'}</span><div><b>${esc(i.title||'Temuan')}</b><small>${esc(i.detail||'')}${i.source?` · ${esc(i.source)}${i.row?` baris ${i.row}`:''}`:''}</small></div></div>`).join(''):`<div class="health-ok"><span>✓</span><div><b>Data terlihat konsisten</b><small>Tidak ditemukan duplikat, pembayaran berlebih, histori yatim, atau baris jadwal yang rusak.</small></div></div>`;
+    openModal('Periksa Data','Health Check',`<div class="health-summary ${ok?'ok':''}"><div><span>Item diperiksa</span><b>${Number(r.summary?.items||0)}</b></div><div><span>Pembayaran</span><b>${Number(r.summary?.payments||0)}</b></div><div><span>Peringatan</span><b>${Number(r.summary?.warnings||0)}</b></div><div><span>Error</span><b>${Number(r.summary?.errors||0)}</b></div></div><div class="health-list">${rows}</div><div class="notice" style="margin-top:12px">Health Check hanya membaca data. Tidak ada sel spreadsheet yang diubah.</div>`);
+  }catch(e){openModal('Periksa Data','Health Check',emptyState('Pemeriksaan gagal',e.message||String(e)));}
 }
 
 async function setupMessaging(){
@@ -376,6 +458,6 @@ async function enableNotifications(showFeedback){
     if(showFeedback)toast('Notifikasi aktif. Registrasi perangkat disinkronkan.');
   }catch(e){if(showFeedback)toast(e.message);}
 }
-async function registerFid(fid){ if(!fid)return; await api.call('registerDevice',{fid,platform:navigator.userAgentData?.platform||navigator.platform||'Web',userAgent:navigator.userAgent,permission:Notification.permission,appVersion:'1.6.0'}); }
+async function registerFid(fid){ if(!fid)return; await api.call('registerDevice',{fid,platform:navigator.userAgentData?.platform||navigator.platform||'Web',userAgent:navigator.userAgent,permission:Notification.permission,appVersion:'1.7.0'}); }
 
 boot();
