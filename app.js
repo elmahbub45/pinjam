@@ -145,11 +145,11 @@ function render(){
 function renderHome(){
   const d=state.data, a=d.analytics;
   const pending=(d.items||[]).filter(x=>x.status!=='Lunas'&&itemRemaining(x)>0).sort(smartBillSort);
-  const next=pending.slice(0,5), nearest=pending[0];
+  const next=pending.slice(0,6), nearest=pending[0];
   const monthPct=a.monthTotal?Math.min(100,Math.round((a.monthPaid/a.monthTotal)*100)):0;
   return `
-  <div class="fintech-home">
-    <section class="wallet-hero compact-wallet-hero">
+  <div class="fintech-home desktop-home-v18">
+    <section class="wallet-hero compact-wallet-hero desktop-wallet-hero">
       <div class="wallet-headline">
         <div class="wallet-brand"><span class="wallet-logo">P</span><span>Pinjam</span></div>
         <span class="wallet-secure">● Tersinkron</span>
@@ -167,36 +167,58 @@ function renderHome(){
       ${nearest?`<div class="wallet-next compact-next"><div><span>Tagihan berikutnya</span><strong>${esc(nearest.provider)}</strong></div><div><span>${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})}</span><strong>${money(itemRemaining(nearest))}</strong></div></div>`:''}
     </section>
 
-    <section class="fintech-surface daily-surface">
-      <div class="section-head quick-title"><div><h2>Aksi cepat</h2><p>Tindakan yang paling sering dipakai.</p></div></div>
-      <div class="finance-shortcuts daily-shortcuts">
+    <section class="fintech-surface daily-surface desktop-daily-surface">
+      <div class="desktop-quick-head section-head quick-title"><div><h2>Aksi cepat</h2><p>Tindakan yang paling sering dipakai.</p></div></div>
+      <div class="finance-shortcuts daily-shortcuts desktop-quick-actions">
         <button id="quickPaidBtn" ${nearest?'':'disabled'}><span class="shortcut-icon">✓</span><b>Tandai Lunas</b><small>${nearest?'Tagihan terdekat':'Tidak ada tagihan'}</small></button>
         <button id="quickSpayBtn"><span class="shortcut-icon">↻</span><b>Update SPayLater</b><small>Nominal terbaru</small></button>
         <button id="homeAddBtn"><span class="shortcut-icon">＋</span><b>Tambah Pinjaman</b><small>Cicilan baru</small></button>
         <button data-go="reminders"><span class="shortcut-icon">◉</span><b>Reminder</b><small>Atur pengingat</small></button>
       </div>
 
-      ${d.vario?.remaining>0?`<button type="button" class="vario-strip vario-action" id="varioPaymentBtn"><span class="vario-icon">V</span><div><strong>Vario 160</strong><small>Sisa ${money(d.vario.remaining)}${d.vario.latestPayment?` · terakhir bayar ${dateFmt(d.vario.latestPayment,{day:'numeric',month:'short'})}`:''}</small></div><span class="chev">›</span></button>`:''}
-
-      <div class="section fintech-section">
-        <div class="section-head"><div><h2>Tagihan terdekat</h2><p>Prioritas pembayaran berikutnya.</p></div><button class="link-btn" data-go="bills">Lihat semua</button></div>
-        <div class="transaction-panel compact-transactions">${next.length?next.map(fintechBillRow).join(''):emptyState('Bulan terasa ringan 🎉','Tidak ada tagihan belum lunas yang perlu diperhatikan.')}</div>
-      </div>
-
-      <div class="section fintech-section">
-        <div class="section-head"><div><h2>Sisa per layanan</h2><p>Komposisi kewajiban aktif.</p></div></div>
-        <div class="provider-fintech-card">${providerRows(a.providerOutstanding)}</div>
+      <div class="home-dashboard-grid">
+        ${d.vario?.remaining>0?`<button type="button" class="vario-strip vario-action desktop-vario-card" id="varioPaymentBtn"><span class="vario-icon">V</span><div><strong>Vario 160</strong><small>Sisa ${money(d.vario.remaining)}${d.vario.latestPayment?` · terakhir bayar ${dateFmt(d.vario.latestPayment,{day:'numeric',month:'short'})}`:''}</small></div><span class="chev">›</span></button>`:''}
+        <div class="home-main-column">
+          <div class="section fintech-section desktop-section-first">
+            <div class="section-head"><div><h2>Tagihan terdekat</h2><p>Prioritas pembayaran berikutnya.</p></div><button class="link-btn" data-go="bills">Lihat semua</button></div>
+            <div class="transaction-panel compact-transactions home-nearest-list">${next.length?next.map(fintechBillRow).join(''):emptyState('Bulan terasa ringan 🎉','Tidak ada tagihan belum lunas yang perlu diperhatikan.')}</div>
+          </div>
+        </div>
+        <div class="section fintech-section desktop-provider-section">
+          <div class="section-head"><div><h2>Sisa per layanan</h2><p>Komposisi kewajiban aktif.</p></div></div>
+          <div class="provider-fintech-card">${providerRows(a.providerOutstanding)}</div>
+        </div>
       </div>
     </section>
   </div>`;
 }
-
 function fintechBillRow(x){
   const [label,cls]=statusInfo(x), dt=new Date(`${x.dueDate}T00:00:00+08:00`);
   const dueText=x.daysUntil===0?'Hari ini':x.daysUntil<0?`${Math.abs(x.daysUntil)} hari lewat`:dateFmt(x.dueDate,{day:'numeric',month:'short'});
   const partialText=x.paymentStatus==='Sebagian'?` · dibayar ${money(itemPaid(x))} dari ${money(itemOriginal(x))}`:'';
   const amountPrefix=x.paymentStatus==='Sebagian'?'Sisa ':'';
   return `<div class="txn-row ${x.paymentStatus==='Sebagian'?'txn-partial':''}" data-item="${esc(x.id)}"><div class="txn-date"><b>${dt.getDate()}</b><span>${new Intl.DateTimeFormat('id-ID',{month:'short'}).format(dt).toUpperCase()}</span></div><div class="txn-copy"><strong>${esc(x.provider)}</strong><span>${esc(x.name)} · ${dueText}${partialText}</span></div><div class="txn-value"><strong>${amountPrefix}${money(itemRemaining(x)||x.amount)}</strong><span class="status ${cls}">${label}</span></div><span class="txn-chevron">›</span></div>`;
+}
+
+function desktopBillTable(items){
+  if(!items.length)return '';
+  return `<div class="desktop-bill-table" role="table" aria-label="Daftar tagihan desktop">
+    <div class="desktop-bill-tr desktop-bill-head" role="row">
+      <span>Jatuh tempo</span><span>Layanan / Tagihan</span><span>Tagihan awal</span><span>Dibayar</span><span>Sisa</span><span>Status</span><span></span>
+    </div>
+    ${items.map(x=>{
+      const [label,cls]=statusInfo(x), original=itemOriginal(x), paid=itemPaid(x), remaining=itemRemaining(x);
+      return `<div class="desktop-bill-tr ${x.paymentStatus==='Sebagian'?'is-partial':''}" role="row" data-item="${esc(x.id)}">
+        <div class="desktop-due"><b>${dateFmt(x.dueDate,{day:'2-digit',month:'short'})}</b><small>${dateFmt(x.dueDate,{year:'numeric'})}</small></div>
+        <div class="desktop-bill-name"><strong>${esc(x.provider)}</strong><span>${esc(x.name)}</span></div>
+        <strong class="desktop-money">${money(original)}</strong>
+        <strong class="desktop-money paid-money">${paid?money(paid):'—'}</strong>
+        <strong class="desktop-money remaining-money">${x.status==='Lunas'?'Rp 0':money(remaining)}</strong>
+        <span class="status ${cls}">${label}</span>
+        <span class="txn-chevron">›</span>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 function billRow(x){ const [label,cls]=statusInfo(x), dt=new Date(`${x.dueDate}T00:00:00+08:00`); return `<div class="bill-row" data-item="${esc(x.id)}"><div class="date-chip">${dt.getDate()}<small>${new Intl.DateTimeFormat('id-ID',{month:'short'}).format(dt).toUpperCase()}</small></div><div class="bill-main"><strong>${esc(x.provider)}</strong><span>${esc(x.name)}</span></div><div class="bill-money">${money(x.amount)}<small>${x.daysUntil===0?'Hari ini':x.daysUntil<0?`${Math.abs(x.daysUntil)} hari lewat`:dateFmt(x.dueDate,{day:'numeric',month:'short'})}</small></div><span class="status ${cls}">${label}</span></div>`; }
@@ -225,7 +247,8 @@ function renderBills(){
         <label><span>Sumber</span><select id="providerFilter"><option value="ALL">Semua</option>${providers.map(p=>`<option ${p===state.filter.provider?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
         <label><span>Status</span><select id="statusFilter"><option value="ALL">Semua</option><option value="UNPAID" ${state.filter.status==='UNPAID'?'selected':''}>Belum lunas</option><option value="PARTIAL" ${state.filter.status==='PARTIAL'?'selected':''}>Sebagian</option><option value="PAID" ${state.filter.status==='PAID'?'selected':''}>Lunas</option></select></label>
       </div>
-      <div class="transaction-panel bills-transactions compact-transactions">${filtered.length?filtered.map(fintechBillRow).join(''):emptyState('Tidak ada tagihan 🎉','Tidak ada tagihan yang cocok dengan filter ini.')}</div>
+      ${desktopBillTable(filtered)}
+      <div class="transaction-panel bills-transactions compact-transactions mobile-bill-list">${filtered.length?filtered.map(fintechBillRow).join(''):emptyState('Tidak ada tagihan 🎉','Tidak ada tagihan yang cocok dengan filter ini.')}</div>
     </section>
   </div>`;
 }
@@ -235,8 +258,9 @@ function monthLabel(m){const [y,mo]=m.split('-');return new Intl.DateTimeFormat(
 function renderLoans(){
   const groups=state.data.groups||[], all=state.data.items||[];
   const totalOutstanding=groups.reduce((n,g)=>n+Number(g.outstanding||0),0), active=groups.filter(g=>Number(g.outstanding||0)>0).length;
+  const nearest=(all.filter(x=>x.status!=='Lunas'&&itemRemaining(x)>0).sort(smartBillSort)[0])||null;
   return `<div class="fintech-page loans-v15">
-    <section class="page-blue-summary loans-summary-blue compact-page-summary"><p class="eyebrow">Pinjaman</p><div class="blue-summary-main"><div><span>Total kewajiban aktif</span><strong>${money(totalOutstanding)}</strong></div><div class="summary-count"><b>${active}</b><span>aktif</span></div></div><button id="addLoanBtn" class="blue-inline-action">＋ Tambah pinjaman</button></section>
+    <section class="page-blue-summary loans-summary-blue compact-page-summary"><p class="eyebrow">Pinjaman</p><div class="blue-summary-main"><div><span>Total kewajiban aktif</span><strong>${money(totalOutstanding)}</strong></div><div class="summary-count"><b>${active}</b><span>aktif</span></div></div><div class="desktop-loan-kpis"><div><span>Kelompok aktif</span><b>${active}</b></div><div><span>Total sisa</span><b>${money(totalOutstanding)}</b></div><div><span>Tagihan terdekat</span><b>${nearest?money(itemRemaining(nearest)):'—'}</b><small>${nearest?`${esc(nearest.provider)} · ${dateFmt(nearest.dueDate,{day:'numeric',month:'short'})}`:'Tidak ada'}</small></div></div><button id="addLoanBtn" class="blue-inline-action">＋ Tambah pinjaman</button></section>
     <section class="page-white-surface loan-surface">
       <div class="section-head"><div><h2>Semua pinjaman</h2><p>Progress, pembayaran, dan jadwal berikutnya.</p></div></div>
       <div class="finance-loan-list rich-loan-list">${groups.map(g=>{
@@ -458,6 +482,6 @@ async function enableNotifications(showFeedback){
     if(showFeedback)toast('Notifikasi aktif. Registrasi perangkat disinkronkan.');
   }catch(e){if(showFeedback)toast(e.message);}
 }
-async function registerFid(fid){ if(!fid)return; await api.call('registerDevice',{fid,platform:navigator.userAgentData?.platform||navigator.platform||'Web',userAgent:navigator.userAgent,permission:Notification.permission,appVersion:'1.7.0'}); }
+async function registerFid(fid){ if(!fid)return; await api.call('registerDevice',{fid,platform:navigator.userAgentData?.platform||navigator.platform||'Web',userAgent:navigator.userAgent,permission:Notification.permission,appVersion:'1.8.0'}); }
 
 boot();
